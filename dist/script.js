@@ -2,32 +2,33 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const promises_1 = require("node:fs/promises");
 async function makeStory() {
-    // FIXME?: Need to start and stop the oolama process in order to preserve VRAM?
     const oolamaResp = await fetch("http://localhost:11434/api/generate", {
         method: "POST",
         body: JSON.stringify({
             model: "mistral",
-            prompt: `Make me a children's story in ten separate paragraphs  about a child named Gavin. 
-         Respond using JSON and put the story in a key called story and have each paragraph be a string stored in an array.
-         Put the descriptions in a key called descriptions and have each description be a string stored in an array.
-         The descriptions must vibrantly describe exactly what is happening and Gavin should be the focus of each description.`,
+            prompt: `Make me a children's story in five separate parts about a child named Gavin. Respond in JSON by placing an array in a key called story that holds each part. Each array element contains a paragraph key, which has the paragraph, and a description key, which is a visual description of what is happening in the paragraph. The descriptions should vibrantly describe what is visible in that part of the story. Whenever possible Gavin should included in the description.`,
             stream: false,
             format: "json",
+            keep_alive: "5s",
         }),
     });
     const oolamaJson = await oolamaResp.json();
-    const parsedResponse = JSON.parse(oolamaJson.response);
-    console.log("Parsed response: ", parsedResponse);
+    if (oolamaJson.error) {
+        console.log("Error from Oolama: ", oolamaJson.error);
+        throw "Error from Oolama.";
+    }
+    const { story, } = JSON.parse(oolamaJson.response);
+    console.log("Parsed response: ", story);
     const directoryPath = Math.floor(Date.now() / 1000).toString();
     await (0, promises_1.mkdir)(`./stories/${directoryPath}`, { recursive: true });
-    for (const [index, description] of parsedResponse.descriptions.entries()) {
+    for (const [index, paragraph] of story.entries()) {
         const sdTxt2ImgResp = await fetch("http://127.0.0.1:7860/sdapi/v1/txt2img", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                prompt: `<lora:el gavin:1> ${description.replace("Gavin", "A toddler named [el gavin]")}`,
+                prompt: `<lora:el gavin:1> ${paragraph.description.replace("Gavin", "A toddler named [el gavin]")}`,
                 negative_prompt: "worst quality, normal quality, low quality, low res, blurry, text, watermark, logo, banner, extra digits, cropped, jpeg artifacts, signature, username, error, sketch ,duplicate, ugly, monochrome, horror, geometry, mutation, disgusting",
                 seed: -1,
                 sampler_name: "DPM++ 2M Karras",
@@ -93,8 +94,8 @@ async function makeStory() {
     </head>
     <body>
       <table>
-        ${parsedResponse.story
-        .map((story, index) => `<tr><td><img src="./${index}.png" /></td><td><h3>${story}</h3></td></tr>`)
+        ${story
+        .map(({ paragraph }, index) => `<tr><td><img src="./${index}.png" /></td><td><h3>${paragraph}</h3></td></tr>`)
         .join("")}
       </table>
     </body>
