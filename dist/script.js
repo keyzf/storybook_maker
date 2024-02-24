@@ -1,12 +1,32 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const promises_1 = require("node:fs/promises");
+const commander_1 = require("commander");
+commander_1.program
+    .option("-m, --model <model>", "ollama model to use", "mistral")
+    .option("-g, --genre <title>", "genre of the story", "children's story")
+    .option("-p, --storyPlot <prompt>", "suggested plot for the hero of the story", "")
+    .option("-h, --hero <name>", "description of the protagonist", "a child named Gavin")
+    .option("-pg, --pages <page>", "number of pages to generate", "5")
+    .option("-l, --lora <lora>", "lora to use", "el gavin")
+    .option("-lw, --loraWeight", "weight of the lora", "1")
+    .option("-pr, --prompt <prompt>", `additional details to provide to the prompt [ex: "(portrait), (toddler), (boy), ((frame from a Studio Ghibli movie))"]`, "(portrait), (extra detailed)")
+    .option("-s, --sampler <sampler>", "sampler to use", "DPM++ 2M Karras")
+    .option("-st, --steps <steps>", "number of steps to use in rendering", "50")
+    .option("-x, --width <width>", "width of the image", "512")
+    .option("-y, --height <height>", "height of the image", "768")
+    .parse();
 async function makeStory() {
+    const opts = commander_1.program.opts();
+    console.log("Options: ", opts);
+    const { model, genre, storyPlot, hero, pages, lora, loraWeight, prompt, sampler, steps, width, height, } = commander_1.program.opts();
+    const fullPrompt = `Make me a ${genre} about ${hero} ${storyPlot ? `where ${storyPlot} ` : ""}in ${pages} separate parts. Respond in JSON by placing an array in a key called story that holds each part. Each array element contains a paragraph key, which has the paragraph, and a description key, which is a visual description of what is happening in the paragraph. The descriptions should describe in plain language what is visible in that part of the story.`;
+    console.log("Prompt being given to ollama: ", fullPrompt);
     const oolamaResp = await fetch("http://localhost:11434/api/generate", {
         method: "POST",
         body: JSON.stringify({
-            model: "mistral",
-            prompt: `Make me a children's story in five separate parts about a child named Gavin. Respond in JSON by placing an array in a key called story that holds each part. Each array element contains a paragraph key, which has the paragraph, and a description key, which is a visual description of what is happening in the paragraph. The descriptions should vibrantly describe what is visible in that part of the story. Whenever possible Gavin should included in the description.`,
+            model,
+            prompt: fullPrompt,
             stream: false,
             format: "json",
             keep_alive: "5s",
@@ -14,11 +34,11 @@ async function makeStory() {
     });
     const oolamaJson = await oolamaResp.json();
     if (oolamaJson.error) {
-        console.log("Error from Oolama: ", oolamaJson.error);
+        console.log("Error from Oolama:", oolamaJson.error);
         throw "Error from Oolama.";
     }
     const { story, } = JSON.parse(oolamaJson.response);
-    console.log("Parsed response: ", story);
+    console.log("Ollama response:", story);
     const directoryPath = Math.floor(Date.now() / 1000).toString();
     await (0, promises_1.mkdir)(`./stories/${directoryPath}`, { recursive: true });
     for (const [index, paragraph] of story.entries()) {
@@ -28,15 +48,15 @@ async function makeStory() {
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                prompt: `<lora:el gavin:1> ${paragraph.description.replace("Gavin", "A toddler named [el gavin]")}`,
-                negative_prompt: "worst quality, normal quality, low quality, low res, blurry, text, watermark, logo, banner, extra digits, cropped, jpeg artifacts, signature, username, error, sketch ,duplicate, ugly, monochrome, horror, geometry, mutation, disgusting",
+                prompt: `<lora:${lora}:${loraWeight}> ${paragraph.description}${prompt ? ` ${prompt}` : ""}`,
+                negative_prompt: "lowres, text, error, cropped, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, out of frame, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck, username, watermark, signature, split frame, multiple frame, split panel, multi panel, cropped, diptych, triptych",
                 seed: -1,
-                sampler_name: "DPM++ 2M Karras",
+                sampler_name: sampler,
                 batch_size: 1,
-                steps: 50,
-                cfg_scale: 5,
-                width: 512,
-                height: 768,
+                steps: steps.toString(),
+                cfg_scale: 10,
+                width: Number(width),
+                height: Number(height),
                 restore_faces: true,
                 tiling: false,
                 refiner_switch_at: 0.8,
@@ -95,7 +115,7 @@ async function makeStory() {
     <body>
       <table>
         ${story
-        .map(({ paragraph }, index) => `<tr><td><img src="./${index}.png" /></td><td><h3>${paragraph}</h3></td></tr>`)
+        .map(({ paragraph }, index) => `<tr><td><img src="./${index}.png" /></td><td><h1>${paragraph}</h1></td></tr>`)
         .join("")}
       </table>
     </body>
