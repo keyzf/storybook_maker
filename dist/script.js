@@ -12,10 +12,9 @@ commander_1.program
     .option("-pg, --pages <page>", "number of pages to generate", "5")
     .option("-l, --lora <lora>", "lora to use", "el gavin")
     .option("-lw, --loraWeight", "weight of the lora", "1")
-    // FIXME: Should we still use this?
-    .option("-pr, --prompt <prompt>", `additional details to provide to the prompt [ex: "(portrait), (toddler), (boy), ((frame from a Studio Ghibli movie))"]`, "(portrait), (extra detailed), ((single person))")
+    .option("-pr, --prompt <prompt>", `additional details to provide to the prompt - should just specify what the overall image looks like`, "masterpiece, best quality, highres, extremely clear 8k wallpaper")
     .option("-s, --sampler <sampler>", "sampler to use", "DPM++ 2M Karras")
-    .option("-st, --steps <steps>", "number of steps to use in rendering", "40")
+    .option("-st, --steps <steps>", "number of steps to use in rendering", "30")
     .option("-x, --width <width>", "width of the image", "768")
     .option("-y, --height <height>", "height of the image", "512")
     .parse();
@@ -28,7 +27,7 @@ async function makeStory() {
   Respond in JSON by placing an array in a key called story that holds each part. 
   Each array element contains 
     a paragraph key: the paragraph, 
-    a description key: a list of the nouns in the scene (excluding the protagonist), 
+    a description key: a list of the physical objects, people, and creatures in the scene (excluding the protagonist), 
     and a background key: a short description of the surroundings.`;
     console.log("Prompt being given to ollama: ", fullPrompt);
     const oolamaResp = await fetch("http://localhost:11434/api/generate", {
@@ -57,13 +56,7 @@ async function makeStory() {
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                // Replace the hero's name with the description
-                // FIXME: Can we use composable LORA to ensure that just one half has the hero being rendered according to the model?
-                /*prompt: `<lora:${lora}:${loraWeight}> ${paragraph.description.replace(
-                  hero,
-                  `${hero} a ${heroDescription}`
-                )}${prompt ? ` ${prompt}` : ""}`,*/
-                prompt: "masterpiece, best quality, highres, extremely clear 8k wallpaper",
+                prompt,
                 negative_prompt: "multiple people, lowres, text, error, cropped, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, out of frame, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck, username, watermark, signature, split frame, multiple frame, split panel, multi panel, cropped, diptych, triptych, nude, naked",
                 seed: -1,
                 // TODO: Ensure that this can be switched as I hope it can.
@@ -147,7 +140,7 @@ async function makeStory() {
                             ],
                         ],
                         "Tiled VAE": {
-                            args: ["True", "True", "True", "True", "False", 1584, 160],
+                            args: ["True", "True", "True", "True", "False", 2048, 192],
                         },
                     },
                     // TODO: Add some kind of configurability support to controlnet via options.
@@ -188,7 +181,7 @@ async function makeStory() {
     <body>
       <table>
         ${story
-        .map(({ paragraph }, index) => `<tr><td><img src="./${index}.png" /></td><td><h1>${paragraph}</h1></td></tr>`)
+        .map(({ paragraph }, index) => `<tr><td><img src="./${index}.png" /></td></tr><tr><td><h1>${paragraph}</h1></td></tr>`)
         .join("")}
       </table>
     </body>
