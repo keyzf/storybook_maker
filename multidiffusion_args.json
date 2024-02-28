@@ -1,0 +1,120 @@
+
+masterpiece, best quality, highres, extremely clear 8k wallpaper
+Negative prompt: multiple people, lowres, text, error, cropped, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, out of frame, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck, username, watermark, signature, split frame, multiple frame, split panel, multi panel, cropped, diptych, triptych, nude, naked
+Steps: 45, 
+Sampler: DPM++ 2M Karras, 
+CFG scale: 14, 
+Seed: 2771006729, 
+Size: 768x512, 
+Model hash: 879db523c3, 
+Model: dreamshaper_8, 
+Tiled Diffusion: {
+  "Method": "Mixture of Diffusers", 
+  "Tile tile width": 96, 
+  "Tile tile height": 96, 
+  "Tile Overlap": 48, 
+  "Tile batch size": 4, 
+  "Region control": {
+    "Region 1": {
+      "enable": true,
+      "x": 0,
+      "y": 0,
+      "w": 1,
+      "h": 1, 
+      "prompt": "a sunny forest, masterpiece, shiny ", 
+      "neg_prompt": "", 
+      "blend_mode": "Background", 
+      "feather_ratio": 0.2, 
+      "seed": -1
+    }, 
+    "Region 2": {
+      "enable": true, 
+      "x": 0, 
+      "y": 0.25, 
+      "w": 0.5, 
+      "h": 0.75, 
+      "prompt": "<lora:el gavin:1>a toddler", 
+      "neg_prompt": "", 
+      "blend_mode": "Foreground", 
+      "feather_ratio": 0.2, 
+      "seed": -1
+    }, "Region 3": {
+      "enable": true, 
+      "x": 0.5, 
+      "y": 0, 
+      "w": 0.5, 
+      "h": 0.75, 
+      "prompt": "a magnificent unicorn, magical", 
+      "neg_prompt": "", 
+      "blend_mode": "Foreground", 
+      "feather_ratio": 0.2, 
+      "seed": -1
+    }
+  }
+}, 
+Lora hashes: "el gavin: c1c19ea335a0", Version: v1.7.0
+
+BBoxSettings = namedtuple('BBoxSettings', [
+  'enable', 
+  'x', 
+  'y', 
+  'w', 
+  'h', 
+  'prompt', 
+  'neg_prompt', 
+  'blend_mode', 
+  'feather_ratio', 
+  'seed'
+  ])
+
+
+33: true
+34: "Mixture of Diffusers"
+​​
+35: false
+​​
+36: true
+​​
+37: 1024
+​​
+38: 1024
+​​
+39: 96
+​​
+40: 96
+​​
+41: 48
+​​
+42: 4
+​​
+43: "None"
+​​
+44: 2
+​​
+45: false
+​​
+46: 10
+​​
+47: 1
+​​
+48: 1
+​​
+49: 64
+​​
+50: false
+​​
+51: true
+​​
+52: false
+​​
+53: false
+​​
+54: true
+​​
+55: 0
+​​
+56: 0
+​​
+57: 1
+​​
+58: 1

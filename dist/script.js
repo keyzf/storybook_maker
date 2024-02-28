@@ -3,24 +3,33 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const promises_1 = require("node:fs/promises");
 const commander_1 = require("commander");
 commander_1.program
+    // FIXME: Should be able to specify both ollama and sd model.
     .option("-m, --model <model>", "ollama model to use", "mistral")
     .option("-g, --genre <title>", "genre of the story", "children's story")
     .option("-p, --storyPlot <prompt>", "suggested plot for the hero of the story", "")
-    .option("-h, --hero <name>", "description of the protagonist", "a child named Gavin")
+    .option("-h, --hero <name>", "name of the protagonist", "Gavin")
+    .option("-hd, --heroDescription <description>", "description of the protagonist", "a boy toddler")
     .option("-pg, --pages <page>", "number of pages to generate", "5")
     .option("-l, --lora <lora>", "lora to use", "el gavin")
     .option("-lw, --loraWeight", "weight of the lora", "1")
-    .option("-pr, --prompt <prompt>", `additional details to provide to the prompt [ex: "(portrait), (toddler), (boy), ((frame from a Studio Ghibli movie))"]`, "(portrait), (extra detailed)")
+    // FIXME: Should we still use this?
+    .option("-pr, --prompt <prompt>", `additional details to provide to the prompt [ex: "(portrait), (toddler), (boy), ((frame from a Studio Ghibli movie))"]`, "(portrait), (extra detailed), ((single person))")
     .option("-s, --sampler <sampler>", "sampler to use", "DPM++ 2M Karras")
-    .option("-st, --steps <steps>", "number of steps to use in rendering", "50")
-    .option("-x, --width <width>", "width of the image", "512")
-    .option("-y, --height <height>", "height of the image", "768")
+    .option("-st, --steps <steps>", "number of steps to use in rendering", "40")
+    .option("-x, --width <width>", "width of the image", "768")
+    .option("-y, --height <height>", "height of the image", "512")
     .parse();
 async function makeStory() {
     const opts = commander_1.program.opts();
     console.log("Options: ", opts);
-    const { model, genre, storyPlot, hero, pages, lora, loraWeight, prompt, sampler, steps, width, height, } = commander_1.program.opts();
-    const fullPrompt = `Make me a ${genre} about ${hero} ${storyPlot ? `where ${storyPlot} ` : ""}in ${pages} separate parts. Respond in JSON by placing an array in a key called story that holds each part. Each array element contains a paragraph key, which has the paragraph, and a description key, which is a visual description of what is happening in the paragraph. The descriptions should describe in plain language what is visible in that part of the story.`;
+    const { model, genre, storyPlot, hero, heroDescription, pages, lora, loraWeight, prompt, sampler, steps, width, height, } = commander_1.program.opts();
+    const fullPrompt = `Make me a ${genre} about ${heroDescription} named ${hero} ${storyPlot ? `where ${storyPlot} ` : ""}in ${pages} separate parts.
+
+  Respond in JSON by placing an array in a key called story that holds each part. 
+  Each array element contains 
+    a paragraph key: the paragraph, 
+    a description key: a list of the nouns in the scene (excluding the protagonist), 
+    and a background key: a short description of the surroundings.`;
     console.log("Prompt being given to ollama: ", fullPrompt);
     const oolamaResp = await fetch("http://localhost:11434/api/generate", {
         method: "POST",
@@ -29,7 +38,7 @@ async function makeStory() {
             prompt: fullPrompt,
             stream: false,
             format: "json",
-            keep_alive: "5s",
+            keep_alive: "0",
         }),
     });
     const oolamaJson = await oolamaResp.json();
@@ -48,56 +57,120 @@ async function makeStory() {
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                prompt: `<lora:${lora}:${loraWeight}> ${paragraph.description}${prompt ? ` ${prompt}` : ""}`,
-                negative_prompt: "lowres, text, error, cropped, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, out of frame, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck, username, watermark, signature, split frame, multiple frame, split panel, multi panel, cropped, diptych, triptych",
+                // Replace the hero's name with the description
+                // FIXME: Can we use composable LORA to ensure that just one half has the hero being rendered according to the model?
+                /*prompt: `<lora:${lora}:${loraWeight}> ${paragraph.description.replace(
+                  hero,
+                  `${hero} a ${heroDescription}`
+                )}${prompt ? ` ${prompt}` : ""}`,*/
+                prompt: "masterpiece, best quality, highres, extremely clear 8k wallpaper",
+                negative_prompt: "multiple people, lowres, text, error, cropped, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, out of frame, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck, username, watermark, signature, split frame, multiple frame, split panel, multi panel, cropped, diptych, triptych, nude, naked",
                 seed: -1,
+                // TODO: Ensure that this can be switched as I hope it can.
+                model: "dreamshaper_8",
                 sampler_name: sampler,
                 batch_size: 1,
                 steps: steps.toString(),
-                cfg_scale: 10,
+                cfg_scale: 14,
                 width: Number(width),
                 height: Number(height),
                 restore_faces: true,
-                tiling: false,
-                refiner_switch_at: 0.8,
+                // tiling: false,
+                // refiner_switch_at: 0.8,
                 disable_extra_networks: false,
                 send_images: true,
                 save_images: true,
-                // styles: [],
-                // subseed: -1,
-                // subseed_strength: 0,
-                // seed_resize_from_h: -1,
-                // seed_resize_from_w: -1,
-                // n_iter: 5, // FIXME: Is this weird?
-                // do_not_save_samples: false,
-                // do_not_save_grid: false,
-                // eta: 0,
-                // denoising_strength: 0,
-                // s_min_uncond: 0,
-                // s_churn: 0,
-                // s_tmax: 0,
-                // s_tmin: 0,
-                // s_noise: 0,
-                // override_settings: {},
-                // override_settings_restore_afterwards: true,
-                // refiner_checkpoint: "string",
-                // comments: {},
-                // enable_hr: false,
-                // firstphase_width: 0,
-                // firstphase_height: 0,
-                // hr_scale: 2,
-                // hr_upscaler: "string",
-                // hr_second_pass_steps: 0,
-                // hr_resize_x: 0,
-                // hr_resize_y: 0,
-                // hr_checkpoint_name: "string",
-                // hr_sampler_name: "string",
-                // hr_prompt: "",
-                // hr_negative_prompt: "",
-                // sampler_index: "DPM++ 2M Karras",
-                // script_name: "string",
-                // script_args: [],
-                // alwayson_scripts: {},
+                alwayson_scripts: {
+                    "Tiled Diffusion": {
+                        // TODO: type this?
+                        args: [
+                            "True", // enabled - bool
+                            "MultiDiffusion", // method - str ("Mixture of Diffusers" or "MultiDiffusion")
+                            "False", // overwrite_size - bool
+                            "True", // keep_input_size - bool
+                            Number(width), // image_width - int
+                            Number(height), // image_height - int
+                            // Don't think these do anything while Region control is active.
+                            96, // tile_width - int
+                            96, // tile_height - int
+                            48, // overlap - int
+                            4, // tile_batch_size - int
+                            "None", // upscaler_name - str
+                            1, // scale_factor - float
+                            "False", // noise_inverse - bool
+                            10, // noise_inverse_steps - int
+                            1, // noise inverse_retouch - float
+                            1, // noise_inverse_renoise_strength - float
+                            64, // noise_inverse_renoise_kernel - int
+                            "False", // control_tensor_cpu - bool
+                            "True", // enable_bbox_control - bool
+                            "False", // draw_background - bool
+                            "False", // causual_layers - bool
+                            /* Layer */
+                            ...[
+                                "True", // enable - bool,
+                                0.0, // x -float,
+                                0.0, // y - float,
+                                1.0, // w - float,
+                                1.0, // h - float
+                                paragraph.background, // prompt - str
+                                "", // neg_prompt - str
+                                "Background", // blend_mode - str
+                                0.2, // feather_ratio - float
+                                -1,
+                            ], // seed - int
+                            /* Layer */
+                            ...[
+                                "True", // enable - bool
+                                0.0, // x -float,
+                                0.25, // y - float,
+                                0.5, // w - float,
+                                0.75, // h - float
+                                `<lora:${lora}:${loraWeight}>${heroDescription}`, // prompt - str
+                                "", // neg_prompt - str
+                                "Foreground", // blend_mode - str
+                                0.2, // feather_ratio - float
+                                -1,
+                            ], // seed - int
+                            /* Layer */
+                            ...[
+                                "True", // enable - bool
+                                0.5, // x -float,
+                                0.0, // y - float,
+                                0.5, // w - float,
+                                0.75, // h - float
+                                paragraph.description.filter((x) => x !== hero).join(","), // prompt - str
+                                "", // neg_prompt - str
+                                "Foreground", // blend_mode - str
+                                0.2, // feather_ratio - float
+                                -1, // seed - int
+                            ],
+                        ],
+                        "Tiled VAE": {
+                            args: ["True", "True", "True", "True", "False", 1584, 160],
+                        },
+                    },
+                    // TODO: Add some kind of configurability support to controlnet via options.
+                    // We currently only apply controlnet to paragraphs that mention the hero, since we're using it for clothing consistency.
+                    /*...(paragraph.description.includes(hero) && {
+                      controlnet: {
+                        // Docs: https://github.com/Mikubill/sd-webui-controlnet/wiki/API#integrating-sdapiv12img
+                        args: [
+                          {
+                            module: "ip-adapter_clip_sd15",
+                            model: "ip-adapter_sd15 [6a3f6166]",
+                            weight: 1,
+                            resize_mode: 2,
+                            lowvram: true,
+                            pixel_perfect: true,
+                            guidance_start: 0.05,
+                            guidance_end: 0.15,
+                            input_image: "/home/kyle/Pictures/shirt_and_jeans.png",
+                          },
+                        ],
+                      },
+                    }),*/
+                },
             }),
         });
         if (sdTxt2ImgResp.status !== 200) {
