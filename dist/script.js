@@ -14,7 +14,7 @@ commander_1.program
     .option("-lw, --loraWeight", "weight of the lora", "1")
     .option("-pr, --prompt <prompt>", `additional details to provide to the prompt - should just specify what the overall image looks like`, "masterpiece, best quality, highres, extremely clear 8k wallpaper")
     .option("-s, --sampler <sampler>", "sampler to use", "DPM++ 2M Karras")
-    .option("-st, --steps <steps>", "number of steps to use in rendering", "30")
+    .option("-st, --steps <steps>", "number of steps to use in rendering", "45")
     .option("-x, --width <width>", "width of the image", "768")
     .option("-y, --height <height>", "height of the image", "512")
     .parse();
@@ -132,7 +132,9 @@ async function makeStory() {
                                 0.0, // y - float,
                                 0.5, // w - float,
                                 0.75, // h - float
-                                paragraph.description.filter((x) => x !== hero).join(","), // prompt - str
+                                paragraph.description
+                                    .filter((x) => x.includes(hero))
+                                    .join(","), // prompt - str
                                 "", // neg_prompt - str
                                 "Foreground", // blend_mode - str
                                 0.2, // feather_ratio - float
@@ -140,7 +142,7 @@ async function makeStory() {
                             ],
                         ],
                         "Tiled VAE": {
-                            args: ["True", "True", "True", "True", "False", 2048, 192],
+                            args: ["True", "True", "True", "True", "False", 2048, 256],
                         },
                     },
                     // TODO: Add some kind of configurability support to controlnet via options.

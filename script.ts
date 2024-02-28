@@ -4,6 +4,11 @@ import { program } from "commander";
 program
   // FIXME: Should be able to specify both ollama and sd model.
   .option("-m, --model <model>", "ollama model to use", "mistral")
+  .option(
+    "-msd, --modelStableDiffusion <model>",
+    "stable diffusion model to use",
+    "dreamshaper_8"
+  )
   .option("-g, --genre <title>", "genre of the story", "children's story")
   .option(
     "-p, --storyPlot <prompt>",
@@ -36,6 +41,7 @@ async function makeStory() {
 
   const {
     model,
+    modelStableDiffusion,
     genre,
     storyPlot,
     hero,
@@ -50,6 +56,7 @@ async function makeStory() {
     height,
   }: {
     model: string;
+    modelStableDiffusion: string;
     genre: string;
     storyPlot: string;
     hero: string;
@@ -119,17 +126,16 @@ async function makeStory() {
           negative_prompt:
             "multiple people, lowres, text, error, cropped, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, out of frame, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck, username, watermark, signature, split frame, multiple frame, split panel, multi panel, cropped, diptych, triptych, nude, naked",
           seed: -1,
-          // TODO: Ensure that this can be switched as I hope it can.
-          model: "dreamshaper_8",
+          model: modelStableDiffusion,
           sampler_name: sampler,
           batch_size: 1,
           steps: steps.toString(),
-          cfg_scale: 14,
+          cfg_scale: 12,
           width: Number(width),
           height: Number(height),
           restore_faces: true,
           // tiling: false,
-          // refiner_switch_at: 0.8,
+          refiner_switch_at: 0.8,
           disable_extra_networks: false,
           send_images: true,
           save_images: true,
@@ -197,7 +203,7 @@ async function makeStory() {
                   0.5, // w - float,
                   0.75, // h - float
                   paragraph.description
-                    .filter((x) => x.includes(hero))
+                    .filter((x) => !x.includes(hero))
                     .join(","), // prompt - str
                   "", // neg_prompt - str
                   "Foreground", // blend_mode - str
@@ -206,7 +212,7 @@ async function makeStory() {
                 ],
               ],
               "Tiled VAE": {
-                args: ["True", "True", "True", "True", "False", 2048, 192],
+                args: ["True", "True", "True", "True", "False", 2048, 256],
               },
             },
             // TODO: Add some kind of configurability support to controlnet via options.
