@@ -30,7 +30,7 @@ program
     "masterpiece, best quality, highres, extremely clear 8k wallpaper"
   )
   .option("-s, --sampler <sampler>", "sampler to use", "DPM++ 2M Karras")
-  .option("-st, --steps <steps>", "number of steps to use in rendering", "40")
+  .option("-st, --steps <steps>", "number of steps to use in rendering", "35")
   .option("-x, --width <width>", "width of the image", "768")
   .option("-y, --height <height>", "height of the image", "512")
   .parse();
@@ -87,51 +87,30 @@ async function makeStory() {
   const directoryPath = Math.floor(Date.now() / 1000).toString();
   await mkdir(`./stories/${directoryPath}`, { recursive: true });
 
-  for (let i = 0; i < story.length; i += 2) {
-    const storyPage0 = story[i];
-    const storyPage1 = story[i + 1];
+  for (const [index, storyPage] of story.entries()) {
+    const imageBlob = await getStableDiffusionImageBlob({
+      prompt,
+      modelStableDiffusion,
+      sampler,
+      steps,
+      width,
+      height,
+      storyPage,
+      lora,
+      loraWeight,
+      hero,
+      heroDescription,
+      urlBase: "127.0.0.1:7860",
+    });
 
-    const [page0Blob, page1Blob] = await Promise.all([
-      getStableDiffusionImageBlob({
-        prompt,
-        modelStableDiffusion,
-        sampler,
-        steps,
-        width,
-        height,
-        storyPage: storyPage0,
-        lora,
-        loraWeight,
-        hero,
-        heroDescription,
-        urlBase: "127.0.0.1:7860",
-      }),
-      getStableDiffusionImageBlob({
-        prompt,
-        modelStableDiffusion,
-        sampler,
-        steps,
-        width,
-        height,
-        storyPage: storyPage1,
-        lora,
-        loraWeight,
-        hero,
-        heroDescription,
-        urlBase: "127.0.0.1:7861",
-      }),
-    ]);
-
-    await Promise.all([
+    for (const [imageIndex, image] of Object.entries(
+      JSON.parse(await imageBlob.text()).images
+    )) {
       await writeFile(
-        `./stories/${directoryPath}/${i}.png`,
-        Buffer.from(JSON.parse(await page0Blob.text()).images[0], "base64")
-      ),
-      await writeFile(
-        `./stories/${directoryPath}/${i + 1}.png`,
-        Buffer.from(JSON.parse(await page1Blob.text()).images[0], "base64")
-      ),
-    ]);
+        `./stories/${directoryPath}/${index}-${imageIndex}.png`,
+        Buffer.from(image as string, "base64")
+      );
+    }
   }
 
   await writeFile(
@@ -146,7 +125,7 @@ async function makeStory() {
         ${story
           .map(
             ({ paragraph }, index) =>
-              `<tr><td><img src="./${index}.png" /></td></tr><tr><td><h1>${paragraph}</h1></td></tr>`
+              `<tr><td><img src="./${index}-1.png" /></td></tr><tr><td><h1>${paragraph}</h1></td></tr>`
           )
           .join("")}
       </table>

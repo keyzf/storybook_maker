@@ -122,7 +122,7 @@ export function getMultiDiffusionScriptArgs({
             ]),
       ],
       "Tiled VAE": {
-        args: ["True", "True", "True", "True", "False", 1024, 96],
+        args: ["True", "True", "True", "True", "False", 2048, 192],
       },
     },
   };

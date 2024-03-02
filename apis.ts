@@ -67,9 +67,10 @@ export async function getStableDiffusionImageBlob({
       negative_prompt:
         "multiple people, lowres, text, error, cropped, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, out of frame, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck, username, watermark, signature, split frame, multiple frame, split panel, multi panel, cropped, diptych, triptych, nude, naked",
       seed: -1,
-      model: modelStableDiffusion,
+      // Specifying the model via the api appears to break batching.
+      // model: modelStableDiffusion,
       sampler_name: sampler,
-      batch_size: 1,
+      batch_size: 3,
       steps: steps.toString(),
       cfg_scale: 15,
       width: Number(width),
