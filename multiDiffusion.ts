@@ -96,17 +96,17 @@ export function getMultiDiffusionScriptArgs({
               // The protagonist's layer - they're off to the left.
               ...getRegion({
                 x: 0.0,
-                y: 0.25,
-                w: 0.5,
-                h: 0.75,
+                y: 0.3,
+                w: 1.0,
+                h: 0.7,
                 prompt: `<lora:${lora}:${loraWeight}>${heroDescription}`,
               }),
               // Something the protagonist is observing - off to the right
               ...getRegion({
                 x: 0.5,
-                y: 0.0,
+                y: 0.05,
                 w: 0.5,
-                h: 0.75,
+                h: 0.4,
                 prompt: filteredDescription.join(","),
               }),
             ]
@@ -115,7 +115,7 @@ export function getMultiDiffusionScriptArgs({
               ...getRegion({
                 x: 0.2,
                 y: 0.1,
-                w: 0.6,
+                w: 0.8,
                 h: 0.8,
                 prompt: `<lora:${lora}:${loraWeight}>${heroDescription}`,
               }),

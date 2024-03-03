@@ -1,6 +1,7 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, copyFile } from "node:fs/promises";
 import { program } from "commander";
 import { getStableDiffusionImageBlob, getStoryPages } from "./apis";
+import { getTemplate } from "./template/templateGenerator";
 
 program
   .option("-m, --model <model>", "ollama model to use", "mistral")
@@ -30,9 +31,9 @@ program
     "masterpiece, best quality, highres, extremely clear 8k wallpaper"
   )
   .option("-s, --sampler <sampler>", "sampler to use", "DPM++ 2M Karras")
-  .option("-st, --steps <steps>", "number of steps to use in rendering", "35")
-  .option("-x, --width <width>", "width of the image", "768")
-  .option("-y, --height <height>", "height of the image", "512")
+  .option("-st, --steps <steps>", "number of steps to use in rendering", "40")
+  .option("-x, --width <width>", "width of the image", "512")
+  .option("-y, --height <height>", "height of the image", "768")
   .parse();
 
 async function makeStory() {
@@ -113,25 +114,12 @@ async function makeStory() {
     }
   }
 
-  await writeFile(
-    `./stories/${directoryPath}/index.html`,
-    `
-  <html>
-    <head>
-      <title>Stories</title>
-    </head>
-    <body>
-      <table>
-        ${story
-          .map(
-            ({ paragraph }, index) =>
-              `<tr><td><img src="./${index}-1.png" /></td></tr><tr><td><h1>${paragraph}</h1></td></tr>`
-          )
-          .join("")}
-      </table>
-    </body>
-  <html>  
-  `
+  // TODO: Copy the fonts to the directory as well.
+
+  await writeFile(`./stories/${directoryPath}/index.html`, getTemplate(story));
+  await copyFile(
+    "./template/HobbyHorseNF.otf",
+    `./stories/${directoryPath}/HobbyHorseNF.otf`
   );
 
   return 0;

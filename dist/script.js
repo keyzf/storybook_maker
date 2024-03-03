@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const promises_1 = require("node:fs/promises");
 const commander_1 = require("commander");
 const apis_1 = require("./apis");
+const templateGenerator_1 = require("./template/templateGenerator");
 commander_1.program
     .option("-m, --model <model>", "ollama model to use", "mistral")
     .option("-msd, --modelStableDiffusion <model>", "stable diffusion model to use", "dreamshaper_8")
@@ -16,8 +17,8 @@ commander_1.program
     .option("-pr, --prompt <prompt>", `additional details to provide to the prompt - should just specify what the overall image looks like`, "masterpiece, best quality, highres, extremely clear 8k wallpaper")
     .option("-s, --sampler <sampler>", "sampler to use", "DPM++ 2M Karras")
     .option("-st, --steps <steps>", "number of steps to use in rendering", "40")
-    .option("-x, --width <width>", "width of the image", "768")
-    .option("-y, --height <height>", "height of the image", "512")
+    .option("-x, --width <width>", "width of the image", "512")
+    .option("-y, --height <height>", "height of the image", "768")
     .parse();
 async function makeStory() {
     const opts = commander_1.program.opts();
@@ -34,61 +35,28 @@ async function makeStory() {
     const story = await (0, apis_1.getStoryPages)(fullPrompt, model);
     const directoryPath = Math.floor(Date.now() / 1000).toString();
     await (0, promises_1.mkdir)(`./stories/${directoryPath}`, { recursive: true });
-    for (let i = 0; i < story.length; i++) {
-        const storyPage0 = story[i];
-        //const storyPage1 = story[i + 1];
-        const [page0Blob] = await Promise.all([
-            (0, apis_1.getStableDiffusionImageBlob)({
-                prompt,
-                modelStableDiffusion,
-                sampler,
-                steps,
-                width,
-                height,
-                storyPage: storyPage0,
-                lora,
-                loraWeight,
-                hero,
-                heroDescription,
-                urlBase: "127.0.0.1:7860",
-            }),
-            /*getStableDiffusionImageBlob({
-              prompt,
-              modelStableDiffusion,
-              sampler,
-              steps,
-              width,
-              height,
-              storyPage: storyPage1,
-              lora,
-              loraWeight,
-              hero,
-              heroDescription,
-              urlBase: "127.0.0.1:7861",
-            }),*/
-        ]);
-        await Promise.all([
-            await (0, promises_1.writeFile)(`./stories/${directoryPath}/${i}.png`, Buffer.from(JSON.parse(await page0Blob.text()).images[0], "base64")),
-            /*await writeFile(
-              `./stories/${directoryPath}/${i + 1}.png`,
-              Buffer.from(JSON.parse(await page1Blob.text()).images[0], "base64")
-            ),*/
-        ]);
+    for (const [index, storyPage] of story.entries()) {
+        const imageBlob = await (0, apis_1.getStableDiffusionImageBlob)({
+            prompt,
+            modelStableDiffusion,
+            sampler,
+            steps,
+            width,
+            height,
+            storyPage,
+            lora,
+            loraWeight,
+            hero,
+            heroDescription,
+            urlBase: "127.0.0.1:7860",
+        });
+        for (const [imageIndex, image] of Object.entries(JSON.parse(await imageBlob.text()).images)) {
+            await (0, promises_1.writeFile)(`./stories/${directoryPath}/${index}-${imageIndex}.png`, Buffer.from(image, "base64"));
+        }
     }
-    await (0, promises_1.writeFile)(`./stories/${directoryPath}/index.html`, `
-  <html>
-    <head>
-      <title>Stories</title>
-    </head>
-    <body>
-      <table>
-        ${story
-        .map(({ paragraph }, index) => `<tr><td><img src="./${index}.png" /></td></tr><tr><td><h1>${paragraph}</h1></td></tr>`)
-        .join("")}
-      </table>
-    </body>
-  <html>  
-  `);
+    // TODO: Copy the fonts to the directory as well.
+    await (0, promises_1.writeFile)(`./stories/${directoryPath}/index.html`, (0, templateGenerator_1.getTemplate)(story));
+    await (0, promises_1.copyFile)("./template/HobbyHorseNF.otf", `./stories/${directoryPath}/HobbyHorseNF.otf`);
     return 0;
 }
 makeStory();
