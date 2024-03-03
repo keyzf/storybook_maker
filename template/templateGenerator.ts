@@ -14,39 +14,34 @@ const template = `
     margin: 0 auto;
     padding: 0;
     max-width: 1200px;
-    background: lightslategray;
 
-    height: 100%;
     background-size: cover;
     background-position: center top;
   }
 
-  div.page {
-    position: relative;
+  div.container {
     display: flex;
     justify-content: center;
-    align-items: flex-end;
-    width: 100%;
-    height: 100%;
-
-    background-size: contain;
-    background-repeat: no-repeat;
-    background-position: center;
+    max-height: 100%
   }
 
-  div.hide_button {
-    background-color: rgba(0, 0, 0, 0.5);
-    color: white;
-    padding: 10px;
-    border-radius: 25px;
+  div.page {
+    display: flex;
+    height: 100%;
+    position: relative;
+    justify-content: center;
+    align-items: center;
+  }
+
+  div.picture {
+    display: flex;
+    justify-content: center;
   }
 
   div.story {
     font-family: HobbyHorseNF;
-    text-align: center;
     display: flex;
     align-items: center;
-    flex-direction: column;
     margin: 10px;
     opacity: 0.8;
     background-color: rgba(0, 0, 0, 0.5);
@@ -56,22 +51,62 @@ const template = `
     border-radius: 25px;
     bottom: 10px;
   }
-</style>
 
-<script>
-  function toggleElement(clicked, index) {
-    const storyElement = document.querySelectorAll(".text")[index];
-    const style = getComputedStyle(storyElement);
-    console.log(style.display);
-    if (style.display === "block") {
-      clicked.innerHTML = "Show";
-      storyElement.style.display = "none";
-    } else {
-      clicked.innerHTML = "Hide";
-      storyElement.style.display = "block";
+  div.hide_button {
+    background-color: rgba(0, 0, 0, 0.5);
+    color: white;
+    padding: 10px;
+    border-radius: 25px;
+  }
+
+  @media (max-width: 600px) {
+    div.container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    div.story {
+      flex-direction: column;
+    }
+
+    div.picture {
+      align-items: center;
+    }
+
+    img {
+      max-height: 100%;
+    }
+
+    div.page {
+      flex-direction: column;
     }
   }
-</script>
+
+  @media (min-width: 600px) {
+    div.container {
+      flex-direction: row;
+      width: 50%;
+    }
+
+    div.story {
+      flex-direction: row;
+    }
+
+    img {
+      max-width: 100%;
+    }
+
+    div.page {
+      flex-direction: row;
+      height: 100vh;
+    }
+
+    div.picture {
+      margin-right: 1em;
+    }
+  }
+</style>
 
 <html lang="en-US">
   <meta
@@ -90,16 +125,21 @@ function getStoryPage(
   imageUrl: string
 ): string {
   return `
-    <div class="page" style="background-image: url('${imageUrl}');">
+  <div class="page">
+    <div class="container">
       <div class="story">
         <h1 class="text">
           ${paragraph}
         </h1>
-        <button class="hide_button" onclick="toggleElement(this, ${index})">
-          Hide
-        </button>
+        </div>
+      </div>
+      <div class="container">
+        <div class="picture">
+          <img src="${imageUrl}" />
+        </div>
       </div>
     </div>
+  </div>
 `;
 }
 
