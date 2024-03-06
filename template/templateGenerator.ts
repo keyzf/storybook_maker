@@ -9,6 +9,11 @@ const template = `
     src: url(HobbyHorseNF.otf);
   }
 
+  .stop-scrolling {
+    height: 100%;
+    overflow: hidden;
+  }
+
   html,
   body {
     margin: 0 auto;
@@ -52,11 +57,19 @@ const template = `
     bottom: 10px;
   }
 
-  div.hide_button {
-    background-color: rgba(0, 0, 0, 0.5);
-    color: white;
-    padding: 10px;
-    border-radius: 25px;
+  div.controls {
+    display: flex;
+    align-content: stretch;
+    position: fixed;
+    bottom: 0;
+    z-index: 10;
+    width: 100%;
+    max-width: 1200px;
+  }
+
+  div.controls button {
+    width: 50%;
+    height: 4em;
   }
 
   @media (max-width: 600px) {
@@ -108,12 +121,51 @@ const template = `
   }
 </style>
 
+<script>
+  function isMobile() {
+    return window.innerWidth < 600;
+  }
+
+  function getSelector() {
+    return isMobile() ? ".container" : ".page";
+  }
+
+
+  function onLoad() {
+    const firstPage = document.querySelector(".page.active");
+    firstPage.scrollIntoView();
+  }
+
+  function changePage(offset) {
+    const selector = getSelector();
+    const pages = document.querySelectorAll(selector);
+
+    let activePage = -1;
+    for (const [i, page] of Object.entries(pages)) {
+      if (page.classList.contains("active")) {
+        activePage = Number(i);
+        break;
+      }
+    }
+
+    if (pages[activePage + offset]) {
+      pages[activePage].classList.remove("active");
+      pages[activePage + offset].classList.add("active");
+      pages[activePage + offset].scrollIntoView();
+    }
+  }
+</script>
+
 <html lang="en-US">
   <meta
     name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
   />
-  <body>
+  <body onload="onLoad()" class="stop-scrolling">
+    <div class="controls">
+      <button onclick="changePage(-1)">Back</button>
+      <button onclick="changePage(1)">Forward</button>
+    </div>
     [##STORY##]
   </body>
 </html>
@@ -125,8 +177,8 @@ function getStoryPage(
   imageUrl: string
 ): string {
   return `
-  <div class="page">
-    <div class="container">
+  <div class="page active">
+    <div class="container active">
       <div class="story">
         <h1 class="text">
           ${paragraph}
