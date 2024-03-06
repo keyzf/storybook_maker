@@ -122,30 +122,6 @@
 </style>
 
 <script>
-  var x = window.scrollX;
-  var y = window.scrollY;
-  window.onscroll = function () {
-    window.scrollTo(window.scrollX, window.scrollY);
-  };
-
-  document.addEventListener("gesturestart", function (e) {
-    e.preventDefault();
-    // special hack to prevent zoom-to-tabs gesture in safari
-    document.body.style.zoom = 0.99;
-  });
-
-  document.addEventListener("gesturechange", function (e) {
-    e.preventDefault();
-    // special hack to prevent zoom-to-tabs gesture in safari
-    document.body.style.zoom = 0.99;
-  });
-
-  document.addEventListener("gestureend", function (e) {
-    e.preventDefault();
-    // special hack to prevent zoom-to-tabs gesture in safari
-    document.body.style.zoom = 0.99;
-  });
-
   function isMobile() {
     return window.innerWidth < 600;
   }
@@ -155,8 +131,14 @@
   }
 
   function onLoad() {
-    const firstPage = document.querySelector(".page.active");
-    firstPage.scrollIntoView();
+    scrollToElement(document.querySelector(".page.active"));
+  }
+
+  function scrollToElement(element) {
+    // iOS safari seems to need a timeout for this to work.
+    setTimeout(() => {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
   }
 
   function changePage(offset) {
@@ -174,7 +156,7 @@
     if (pages[activePage + offset]) {
       pages[activePage].classList.remove("active");
       pages[activePage + offset].classList.add("active");
-      pages[activePage + offset].scrollIntoView();
+      scrollToElement(pages[activePage + offset]);
     }
   }
 </script>

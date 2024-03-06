@@ -130,10 +130,15 @@ const template = `
     return isMobile() ? ".container" : ".page";
   }
 
-
   function onLoad() {
-    const firstPage = document.querySelector(".page.active");
-    firstPage.scrollIntoView();
+    scrollToElement(document.querySelector(".page.active"));
+  }
+
+  function scrollToElement(element) {
+    // iOS safari seems to need a timeout for this to work.
+    setTimeout(() => {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
   }
 
   function changePage(offset) {
@@ -151,7 +156,7 @@ const template = `
     if (pages[activePage + offset]) {
       pages[activePage].classList.remove("active");
       pages[activePage + offset].classList.add("active");
-      pages[activePage + offset].scrollIntoView();
+      scrollToElement(pages[activePage + offset]);
     }
   }
 </script>
