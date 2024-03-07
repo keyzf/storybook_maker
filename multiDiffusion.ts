@@ -71,9 +71,9 @@ export function getMultiDiffusionScriptArgs({
         96, // tile_width - int
         96, // tile_height - int
         48, // overlap - int
-        12, // tile_batch_size - int
+        8, // tile_batch_size - int
         "None", // upscaler_name - str
-        2, // scale_factor - float
+        1, // scale_factor - float
         "False", // noise_inverse - bool
         10, // noise_inverse_steps - int
         1, // noise inverse_retouch - float

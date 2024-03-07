@@ -10,8 +10,7 @@ const template = `
   }
 
   .stop-scrolling {
-    height: 100%;
-    overflow: hidden;
+    touch-action: none;
   }
 
   html,
@@ -76,6 +75,7 @@ const template = `
     div.container {
       display: flex;
       flex-direction: column;
+      justify-content: start;
       height: 100vh;
     }
 
@@ -89,6 +89,7 @@ const template = `
 
     img {
       max-height: 100%;
+      max-width: 100%;
     }
 
     div.page {
@@ -122,6 +123,11 @@ const template = `
 </style>
 
 <script>
+  window.addEventListener("scroll", (e) => {
+    e.preventDefault();
+    changePage(0);
+  });
+
   function isMobile() {
     return window.innerWidth < 600;
   }
@@ -131,14 +137,11 @@ const template = `
   }
 
   function onLoad() {
-    scrollToElement(document.querySelector(".page.active"));
+    changePage(0);
   }
 
   function scrollToElement(element) {
-    // iOS safari seems to need a timeout for this to work.
-    setTimeout(() => {
-      element.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 100);
+    element.scrollIntoView({ behavior: "instant", block: "start" });
   }
 
   function changePage(offset) {

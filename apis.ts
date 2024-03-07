@@ -70,13 +70,13 @@ export async function getStableDiffusionImageBlob({
       // Specifying the model via the api appears to break batching.
       // model: modelStableDiffusion,
       sampler_name: sampler,
-      batch_size: 3,
+      batch_size: 3, // TODO: Make this configurable - but I think 1 will break things.
       steps: steps.toString(),
       cfg_scale: 15,
       width: Number(width),
       height: Number(height),
       restore_faces: true,
-      refiner_switch_at: 0.8,
+      // refiner_switch_at: 0.8,
       disable_extra_networks: false,
       send_images: true,
       save_images: true,
