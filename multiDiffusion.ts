@@ -43,6 +43,7 @@ export function getMultiDiffusionScriptArgs({
   loraWeight,
   hero,
   heroDescription,
+  useRegions = true,
 }: {
   width: number;
   height: number;
@@ -51,10 +52,13 @@ export function getMultiDiffusionScriptArgs({
   loraWeight: string;
   hero: string;
   heroDescription: string;
+  useRegions: boolean;
 }) {
   const filteredDescription = storyPage.description.filter(
     (x) => !x.includes(hero)
   );
+
+  const heroPrompt = `<lora:${lora}:${loraWeight}>(1person portrait),${heroDescription}`;
 
   return {
     "Tiled Diffusion": {
@@ -84,41 +88,55 @@ export function getMultiDiffusionScriptArgs({
         "False", // draw_background - bool
         "False", // causual_layers - bool
 
-        // Background layer
-        ...getRegion({
-          prompt: storyPage.background,
-          blendMode: "Background",
-        }),
-
-        // Protagonist layer
-        ...(filteredDescription.length > 0
-          ? [
-              // The protagonist's layer - they're off to the left.
-              ...getRegion({
-                x: 0.0,
-                y: 0.3,
-                w: 1.0,
-                h: 0.7,
-                prompt: `<lora:${lora}:${loraWeight}>${heroDescription}`,
-              }),
-              // Something the protagonist is observing - off to the right
-              ...getRegion({
-                x: 0.5,
-                y: 0.05,
-                w: 0.5,
-                h: 0.4,
-                prompt: filteredDescription.join(","),
-              }),
-            ]
+        ...(!useRegions
+          ? []
           : [
-              // Protagonist is front and center of this.
+              // Background layer
               ...getRegion({
-                x: 0.2,
-                y: 0.1,
-                w: 0.8,
-                h: 0.8,
-                prompt: `<lora:${lora}:${loraWeight}>${heroDescription}`,
+                prompt: `${storyPage.background}, ${storyPage.paragraph}`,
+                blendMode: "Background",
               }),
+
+              // Protagonist layer
+              ...(filteredDescription.length > 0
+                ? [
+                    // The protagonist is front and center of this.
+                    ...getRegion({
+                      x: 0.0,
+                      y: 0.3,
+                      w: 1.0,
+                      h: 0.7,
+                      prompt: heroPrompt,
+                    }),
+                    // Bottom right item
+                    ...getRegion({
+                      x: 0.6,
+                      y: 0.7,
+                      w: 0.4,
+                      h: 0.3,
+                      prompt: filteredDescription[0],
+                    }),
+                    // Optional top left item
+                    ...(filteredDescription[1]
+                      ? getRegion({
+                          x: 0.0,
+                          y: 0.0,
+                          w: 0.4,
+                          h: 0.3,
+                          prompt: filteredDescription[1],
+                        })
+                      : []),
+                  ]
+                : [
+                    // Protagonist is front and center of this.
+                    ...getRegion({
+                      x: 0.2,
+                      y: 0.1,
+                      w: 0.8,
+                      h: 0.8,
+                      prompt: heroPrompt,
+                    }),
+                  ]),
             ]),
       ],
       "Tiled VAE": {

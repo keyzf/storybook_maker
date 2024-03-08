@@ -45,6 +45,7 @@ export async function getStableDiffusionImageBlob({
   hero,
   heroDescription,
   urlBase = "127.0.0.1:7860",
+  useRegions = true,
 }: {
   prompt: string;
   modelStableDiffusion: string;
@@ -57,22 +58,25 @@ export async function getStableDiffusionImageBlob({
   loraWeight: string;
   hero: string;
   heroDescription: string;
+  useRegions: boolean;
   urlBase?: string;
 }): Promise<Blob> {
   const sdTxt2ImgResp = await fetch(`http://${urlBase}/sdapi/v1/txt2img`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      prompt,
+      prompt: useRegions
+        ? prompt
+        : `<lora:${lora}:${loraWeight}>(1person portrait), ${prompt}, ${heroDescription}, ${storyPage.description}, ${storyPage.background}`,
       negative_prompt:
         "multiple people, lowres, text, error, cropped, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, out of frame, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck, username, watermark, signature, split frame, multiple frame, split panel, multi panel, cropped, diptych, triptych, nude, naked",
       seed: -1,
       // Specifying the model via the api appears to break batching.
       // model: modelStableDiffusion,
       sampler_name: sampler,
-      batch_size: 3, // TODO: Make this configurable - but I think 1 will break things.
+      batch_size: useRegions ? 3 : 6, // TODO: Make this configurable - but I think 1 will break things.
       steps: steps.toString(),
-      cfg_scale: 15,
+      cfg_scale: 20,
       width: Number(width),
       height: Number(height),
       restore_faces: true,
@@ -89,6 +93,7 @@ export async function getStableDiffusionImageBlob({
           loraWeight,
           hero,
           heroDescription,
+          useRegions,
         }),
         // TODO: Add some kind of configurability support to controlnet via options.
         // We currently only apply controlnet to paragraphs that mention the hero, since we're using it for clothing consistency.

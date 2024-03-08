@@ -48,6 +48,9 @@ async function makeStory() {
             loraWeight,
             hero,
             heroDescription,
+            // We can go faster if we only use regions every few pages.
+            // Can also end up with some better action shots as a result.
+            useRegions: index % 3 === 0,
             urlBase: "127.0.0.1:7860",
         });
         for (const [imageIndex, image] of Object.entries(JSON.parse(await imageBlob.text()).images)) {
