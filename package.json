@@ -1,7 +1,8 @@
 {
   "scripts": {
     "story": "tsc && node dist/script.js",
-    "serve": "http-server ./stories -p 8080 -c-1"
+    "serve": "http-server ./stories -p 8080 -c-1",
+    "train": "tsc && node dist/trainer.js"
   },
   "dependencies": {
     "@types/jimp": "^0.2.28",
