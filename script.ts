@@ -2,6 +2,7 @@ import { mkdir, writeFile, copyFile } from "node:fs/promises";
 import { program } from "commander";
 import { getStableDiffusionImageBlob, getStoryPages } from "./apis";
 import { getTemplate } from "./template/templateGenerator";
+import { WebUiManager } from "./WebUiManager";
 
 program
   .option("-m, --model <model>", "ollama model to use", "mistral")
@@ -88,6 +89,9 @@ async function makeStory() {
   const directoryPath = Math.floor(Date.now() / 1000).toString();
   await mkdir(`./stories/${directoryPath}`, { recursive: true });
 
+  const webUi = new WebUiManager();
+  await webUi.startProcess();
+
   for (const [index, storyPage] of story.entries()) {
     const imageBlob = await getStableDiffusionImageBlob({
       prompt,
@@ -117,14 +121,13 @@ async function makeStory() {
     }
   }
 
-  // TODO: Copy the fonts to the directory as well.
-
   await writeFile(`./stories/${directoryPath}/index.html`, getTemplate(story));
   await copyFile(
     "./template/HobbyHorseNF.otf",
     `./stories/${directoryPath}/HobbyHorseNF.otf`
   );
 
+  webUi.stopProcess();
   return 0;
 }
 

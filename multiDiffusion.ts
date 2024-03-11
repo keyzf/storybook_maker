@@ -58,7 +58,7 @@ export function getMultiDiffusionScriptArgs({
     (x) => !x.includes(hero)
   );
 
-  const heroPrompt = `<lora:${lora}:${loraWeight}>(1person portrait),${heroDescription}`;
+  const heroPrompt = `<lora:${lora}:${loraWeight}>(portrait), easyphoto_face, easyphoto, 1person, ${heroDescription}`;
 
   return {
     "Tiled Diffusion": {

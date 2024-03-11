@@ -1,5 +1,6 @@
 import { getMultiDiffusionScriptArgs } from "./multiDiffusion";
 import { StoryPage } from "./types";
+import { readdir, readFile } from "node:fs/promises";
 
 export async function getStoryPages(
   prompt: string,
@@ -61,13 +62,15 @@ export async function getStableDiffusionImageBlob({
   useRegions: boolean;
   urlBase?: string;
 }): Promise<Blob> {
+  // TODO: Switch the checkpoint if it does match what is currently running on the server.
+
   const sdTxt2ImgResp = await fetch(`http://${urlBase}/sdapi/v1/txt2img`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       prompt: useRegions
         ? prompt
-        : `<lora:${lora}:${loraWeight}>(1person portrait), ${prompt}, ${heroDescription}, ${storyPage.description}, ${storyPage.background}`,
+        : `<lora:${lora}:${loraWeight}>easyphoto_face, 1person, ${prompt}, ${heroDescription}, ${storyPage.description}, ${storyPage.background}`,
       negative_prompt:
         "multiple people, lowres, text, error, cropped, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, out of frame, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck, username, watermark, signature, split frame, multiple frame, split panel, multi panel, cropped, diptych, triptych, nude, naked",
       seed: -1,
@@ -129,4 +132,49 @@ export async function getStableDiffusionImageBlob({
   }
 
   return sdTxt2ImgResp.blob();
+}
+
+export async function trainStableDiffusionLora(
+  id: string,
+  targetDirectory: string
+) {
+  const b64EncodedImages = await Promise.all(
+    (
+      await readdir(targetDirectory)
+    ).map(async (filename) =>
+      (await readFile(`${targetDirectory}/${filename}`)).toString("base64")
+    )
+  );
+
+  // This will timeout - need to poll logs for completion.
+  fetch("http://localhost:7860/easyphoto/easyphoto_train_forward", {
+    signal: new AbortController().signal,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      user_id: id,
+      sd_model_checkpoint: "v1-5-pruned-emaonly.safetensors",
+      resolution: 512,
+      val_and_checkpointing_steps: 100,
+      max_train_steps: 800,
+      steps_per_photos: 200,
+      train_batch_size: 1,
+      gradient_accumulation_steps: 4,
+      // I think the number of these are why we have memory problems.
+      // Default is 16.
+      dataloader_num_workers: 10,
+      learning_rate: 1e-4,
+      rank: 128,
+      network_alpha: 64,
+      instance_images: b64EncodedImages,
+      // validation causes a mean spike in memory usage that kills everything
+      validation: false,
+      skin_retouching_bool: true,
+    }),
+  }).catch((e) => {
+    console.error(
+      "Error returned from training api, probably expected and thus ignored:",
+      e
+    );
+  });
 }

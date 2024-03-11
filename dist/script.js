@@ -4,6 +4,7 @@ const promises_1 = require("node:fs/promises");
 const commander_1 = require("commander");
 const apis_1 = require("./apis");
 const templateGenerator_1 = require("./template/templateGenerator");
+const WebUiManager_1 = require("./WebUiManager");
 commander_1.program
     .option("-m, --model <model>", "ollama model to use", "mistral")
     .option("-msd, --modelStableDiffusion <model>", "stable diffusion model to use", "dreamshaper_8")
@@ -35,6 +36,8 @@ async function makeStory() {
     const story = await (0, apis_1.getStoryPages)(fullPrompt, model);
     const directoryPath = Math.floor(Date.now() / 1000).toString();
     await (0, promises_1.mkdir)(`./stories/${directoryPath}`, { recursive: true });
+    const webUi = new WebUiManager_1.WebUiManager();
+    await webUi.startProcess();
     for (const [index, storyPage] of story.entries()) {
         const imageBlob = await (0, apis_1.getStableDiffusionImageBlob)({
             prompt,
@@ -57,9 +60,9 @@ async function makeStory() {
             await (0, promises_1.writeFile)(`./stories/${directoryPath}/${index}-${imageIndex}.png`, Buffer.from(image, "base64"));
         }
     }
-    // TODO: Copy the fonts to the directory as well.
     await (0, promises_1.writeFile)(`./stories/${directoryPath}/index.html`, (0, templateGenerator_1.getTemplate)(story));
     await (0, promises_1.copyFile)("./template/HobbyHorseNF.otf", `./stories/${directoryPath}/HobbyHorseNF.otf`);
+    webUi.stopProcess();
     return 0;
 }
 makeStory();
