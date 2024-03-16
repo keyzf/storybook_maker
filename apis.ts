@@ -73,23 +73,25 @@ export async function getStableDiffusionImageBlob({
   useRegions: boolean;
   urlBase?: string;
 }): Promise<Blob> {
-  //const useRegions = !!storyPage.description.length;
+  const generatedPrompt = useRegions
+    ? prompt
+    : `<lora:${lora}:${loraWeight}>${prompt}, ${storyPage.paragraph}, easyphoto_face, ${physicalDescription}, ${storyPage.background}, ${storyPage.description}`;
+
+  console.log("### Prompt: ", generatedPrompt);
 
   const sdTxt2ImgResp = await fetch(`http://${urlBase}/sdapi/v1/txt2img`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      prompt: useRegions
-        ? prompt
-        : `<lora:${lora}:${loraWeight}>easyphoto, ${prompt}, ${physicalDescription}, ${storyPage.description}, ${storyPage.background}`,
+      prompt: generatedPrompt,
       negative_prompt:
         "multiple people, lowres, text, error, cropped, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, out of frame, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck, username, watermark, signature, split frame, multiple frame, split panel, multi panel, cropped, diptych, triptych, nude, naked",
       seed: -1,
       // Specifying the model here appears to break batching.
       // model: modelStableDiffusion,
       sampler_name: sampler,
-      batch_size: useRegions ? 3 : 6, // TODO: Make this configurable - but I think 1 will break things.
-      steps: useRegions ? steps : Math.floor(Number(steps) * 1.5).toString(),
+      batch_size: /*useRegions ?*/ 3 /*: 6*/, // TODO: Make this configurable - but I think 1 will break things.
+      steps,
       cfg_scale: 18,
       width: Number(width),
       height: Number(height),
@@ -98,17 +100,27 @@ export async function getStableDiffusionImageBlob({
       disable_extra_networks: false,
       send_images: true,
       save_images: true,
+      ...(!useRegions
+        ? {
+            enable_hr: true,
+            denoising_strength: 0.4,
+            hr_scale: 1.5,
+            hr_upscaler: "Latent",
+            hr_second_pass_steps: 0,
+          }
+        : {}),
       alwayson_scripts: {
-        ...getMultiDiffusionScriptArgs({
-          width: Number(width),
-          height: Number(height),
-          storyPage,
-          lora,
-          loraWeight,
-          hero,
-          physicalDescription,
-          useRegions,
-        }),
+        ...(useRegions
+          ? getMultiDiffusionScriptArgs({
+              width: Number(width),
+              height: Number(height),
+              storyPage,
+              lora,
+              loraWeight,
+              hero,
+              physicalDescription,
+            })
+          : {}),
         // TODO: Add some kind of configurability support to controlnet via options.
         // We currently only apply controlnet to paragraphs that mention the hero, since we're using it for clothing consistency.
         /*...(paragraph.description.includes(hero) && {
