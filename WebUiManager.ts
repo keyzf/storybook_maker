@@ -1,5 +1,5 @@
-import { promisify } from "node:util";
 import { spawn, ChildProcessWithoutNullStreams } from "child_process";
+import terminate from "terminate";
 
 export class WebUiManager {
   protected process: ChildProcessWithoutNullStreams;
@@ -42,6 +42,9 @@ export class WebUiManager {
     while (!this.ready) {
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
+
+    // Wait another second because sometimes it's not quite ready yet.
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
   async monitorLogsTill(condition: string): Promise<void> {
@@ -60,6 +63,6 @@ export class WebUiManager {
   stopProcess() {
     this.process.stdout.destroy();
     this.process.stderr.destroy();
-    this.process.kill("SIGINT");
+    terminate(this.process.pid);
   }
 }

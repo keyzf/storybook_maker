@@ -42,7 +42,7 @@ export function getMultiDiffusionScriptArgs({
   lora,
   loraWeight,
   hero,
-  heroDescription,
+  physicalDescription,
   useRegions = true,
 }: {
   width: number;
@@ -51,14 +51,14 @@ export function getMultiDiffusionScriptArgs({
   lora: string;
   loraWeight: string;
   hero: string;
-  heroDescription: string;
+  physicalDescription: string;
   useRegions: boolean;
 }) {
   const filteredDescription = storyPage.description.filter(
     (x) => !x.includes(hero)
   );
 
-  const heroPrompt = `<lora:${lora}:${loraWeight}>(portrait), easyphoto_face, easyphoto, 1person, ${heroDescription}`;
+  const heroPrompt = `<lora:${lora}:${loraWeight}>(easyphoto_face), ${physicalDescription}`;
 
   return {
     "Tiled Diffusion": {

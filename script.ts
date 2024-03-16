@@ -1,11 +1,20 @@
 import { mkdir, writeFile, copyFile } from "node:fs/promises";
 import { program } from "commander";
-import { getStableDiffusionImageBlob, getStoryPages } from "./apis";
+import {
+  getStableDiffusionImageBlob,
+  getStoryPages,
+  setStableDiffusionModelCheckpoint,
+} from "./apis";
 import { getTemplate } from "./template/templateGenerator";
 import { WebUiManager } from "./WebUiManager";
 
 program
   .option("-m, --model <model>", "ollama model to use", "mistral")
+  /* 
+    List:
+      - cyberrealistic_classicV31, dreamshaper_8, LZ-16K+Optics, realismEngine_v10
+      - v1-5-pruned
+  */
   .option(
     "-msd, --modelStableDiffusion <model>",
     "stable diffusion model to use",
@@ -23,9 +32,14 @@ program
     "description of the protagonist",
     "a boy toddler"
   )
+  .option(
+    "-pd, --physicalDescription <description>",
+    "physical description of the protagonist - used in rendering",
+    "white, boy, toddler"
+  )
   .option("-pg, --pages <page>", "number of pages to generate", "5")
-  .option("-l, --lora <lora>", "lora to use", "el gavin")
-  .option("-lw, --loraWeight", "weight of the lora", "1")
+  .option("-l, --lora <lora>", "lora to use", "gavin-15")
+  .option("-lw, --loraWeight", "weight of the lora", "1.1")
   .option(
     "-pr, --prompt <prompt>",
     `additional details to provide to the prompt - should just specify what the overall image looks like`,
@@ -48,6 +62,7 @@ async function makeStory() {
     storyPlot,
     hero,
     heroDescription,
+    physicalDescription,
     pages,
     lora,
     loraWeight,
@@ -63,6 +78,7 @@ async function makeStory() {
     storyPlot: string;
     hero: string;
     heroDescription: string;
+    physicalDescription: string;
     pages: string;
     lora: string;
     loraWeight: string;
@@ -92,10 +108,14 @@ async function makeStory() {
   const webUi = new WebUiManager();
   await webUi.startProcess();
 
+  const imageBlobs: Buffer[][] = [];
+
+  // Set the appropriate model.
+  await setStableDiffusionModelCheckpoint(modelStableDiffusion);
+
   for (const [index, storyPage] of story.entries()) {
     const imageBlob = await getStableDiffusionImageBlob({
       prompt,
-      modelStableDiffusion,
       sampler,
       steps,
       width,
@@ -104,10 +124,10 @@ async function makeStory() {
       lora,
       loraWeight,
       hero,
-      heroDescription,
+      physicalDescription,
       // We can go faster if we only use regions every few pages.
       // Can also end up with some better action shots as a result.
-      useRegions: index % 3 === 0,
+      useRegions: storyPage.description.length && index % 2 === 0,
       urlBase: "127.0.0.1:7860",
     });
 
@@ -118,14 +138,27 @@ async function makeStory() {
         `./stories/${directoryPath}/${index}-${imageIndex}.png`,
         Buffer.from(image as string, "base64")
       );
+      if (!imageBlobs[index])
+        imageBlobs[index] = [Buffer.from(image as string, "base64")];
+      else imageBlobs[index].push(Buffer.from(image as string, "base64"));
     }
   }
 
-  await writeFile(`./stories/${directoryPath}/index.html`, getTemplate(story));
-  await copyFile(
-    "./template/HobbyHorseNF.otf",
-    `./stories/${directoryPath}/HobbyHorseNF.otf`
-  );
+  await Promise.all([
+    writeFile(
+      `./stories/${directoryPath}/index.html`,
+      getTemplate(
+        story,
+        // Send through the previews before we edit.
+        imageBlobs.map((x) => x[0])
+      )
+    ),
+    writeFile(`./stories/${directoryPath}/story.json`, JSON.stringify(story)),
+    copyFile(
+      "./template/HobbyHorseNF.otf",
+      `./stories/${directoryPath}/HobbyHorseNF.otf`
+    ),
+  ]);
 
   webUi.stopProcess();
   return 0;

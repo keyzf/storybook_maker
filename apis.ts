@@ -33,9 +33,21 @@ export async function getStoryPages(
   return story;
 }
 
+export async function setStableDiffusionModelCheckpoint(
+  checkpoint,
+  urlBase = "127.0.0.1:7860"
+): Promise<void> {
+  await fetch(`http://${urlBase}/sdapi/v1/options`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sd_model_checkpoint: checkpoint,
+    }),
+  });
+}
+
 export async function getStableDiffusionImageBlob({
   prompt,
-  modelStableDiffusion,
   sampler,
   steps,
   width,
@@ -44,12 +56,11 @@ export async function getStableDiffusionImageBlob({
   lora,
   loraWeight,
   hero,
-  heroDescription,
+  physicalDescription,
+  useRegions,
   urlBase = "127.0.0.1:7860",
-  useRegions = true,
 }: {
   prompt: string;
-  modelStableDiffusion: string;
   sampler: string;
   steps: string;
   width: string;
@@ -58,11 +69,11 @@ export async function getStableDiffusionImageBlob({
   lora: string;
   loraWeight: string;
   hero: string;
-  heroDescription: string;
+  physicalDescription: string;
   useRegions: boolean;
   urlBase?: string;
 }): Promise<Blob> {
-  // TODO: Switch the checkpoint if it does match what is currently running on the server.
+  //const useRegions = !!storyPage.description.length;
 
   const sdTxt2ImgResp = await fetch(`http://${urlBase}/sdapi/v1/txt2img`, {
     method: "POST",
@@ -70,16 +81,16 @@ export async function getStableDiffusionImageBlob({
     body: JSON.stringify({
       prompt: useRegions
         ? prompt
-        : `<lora:${lora}:${loraWeight}>easyphoto_face, 1person, ${prompt}, ${heroDescription}, ${storyPage.description}, ${storyPage.background}`,
+        : `<lora:${lora}:${loraWeight}>easyphoto, ${prompt}, ${physicalDescription}, ${storyPage.description}, ${storyPage.background}`,
       negative_prompt:
         "multiple people, lowres, text, error, cropped, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, out of frame, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck, username, watermark, signature, split frame, multiple frame, split panel, multi panel, cropped, diptych, triptych, nude, naked",
       seed: -1,
-      // Specifying the model via the api appears to break batching.
+      // Specifying the model here appears to break batching.
       // model: modelStableDiffusion,
       sampler_name: sampler,
       batch_size: useRegions ? 3 : 6, // TODO: Make this configurable - but I think 1 will break things.
       steps: steps.toString(),
-      cfg_scale: 20,
+      cfg_scale: 18,
       width: Number(width),
       height: Number(height),
       restore_faces: true,
@@ -95,7 +106,7 @@ export async function getStableDiffusionImageBlob({
           lora,
           loraWeight,
           hero,
-          heroDescription,
+          physicalDescription,
           useRegions,
         }),
         // TODO: Add some kind of configurability support to controlnet via options.
