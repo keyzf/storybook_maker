@@ -1,4 +1,4 @@
-import { mkdir, writeFile, copyFile } from "node:fs/promises";
+import { mkdir, writeFile, copyFile, access } from "node:fs/promises";
 import { program } from "commander";
 import {
   getStableDiffusionImageBlob,
@@ -89,6 +89,11 @@ async function makeStory() {
     height: string;
   } = program.opts();
 
+  // Ensure that the targeted lora exists. Saves us time if something went wrong.
+  await access(
+    `/home/kyle/Development/stable_diffusion/stable-diffusion-webui/models/Lora/${lora}.safetensors`
+  );
+
   const fullPrompt = `Make me a ${genre} about ${heroDescription} named ${hero} ${
     storyPlot ? `where ${storyPlot} ` : ""
   }in ${pages} separate parts.
@@ -96,7 +101,7 @@ async function makeStory() {
   Respond in JSON by placing an array in a key called story that holds each part. 
   Each array element contains 
     a paragraph key: the paragraph, 
-    a description key: a list of the physical entities in the scene (excluding the protagonist), 
+    a description key: a list of the physical entities in the scene and what they look like in string format, 
     and a background key: a short description of the surroundings.`;
   console.log("Prompt being given to ollama: ", fullPrompt);
 

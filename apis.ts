@@ -89,7 +89,7 @@ export async function getStableDiffusionImageBlob({
       // model: modelStableDiffusion,
       sampler_name: sampler,
       batch_size: useRegions ? 3 : 6, // TODO: Make this configurable - but I think 1 will break things.
-      steps: steps.toString(),
+      steps: useRegions ? steps : Math.floor(Number(steps) * 1.5).toString(),
       cfg_scale: 18,
       width: Number(width),
       height: Number(height),

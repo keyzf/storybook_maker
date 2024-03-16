@@ -23,7 +23,7 @@ commander_1.program
     .option("-lw, --loraWeight", "weight of the lora", "1.1")
     .option("-pr, --prompt <prompt>", `additional details to provide to the prompt - should just specify what the overall image looks like`, "masterpiece, best quality, highres, extremely clear 8k wallpaper")
     .option("-s, --sampler <sampler>", "sampler to use", "DPM++ 2M Karras")
-    .option("-st, --steps <steps>", "number of steps to use in rendering", "35")
+    .option("-st, --steps <steps>", "number of steps to use in rendering", "40")
     .option("-x, --width <width>", "width of the image", "512")
     .option("-y, --height <height>", "height of the image", "768")
     .parse();
@@ -31,12 +31,14 @@ async function makeStory() {
     const opts = commander_1.program.opts();
     console.log("Options: ", opts);
     const { model, modelStableDiffusion, genre, storyPlot, hero, heroDescription, physicalDescription, pages, lora, loraWeight, prompt, sampler, steps, width, height, } = commander_1.program.opts();
+    // Ensure that the targeted lora exists. Saves us time if something went wrong.
+    await (0, promises_1.access)(`/home/kyle/Development/stable_diffusion/stable-diffusion-webui/models/Lora/${lora}.safetensors`);
     const fullPrompt = `Make me a ${genre} about ${heroDescription} named ${hero} ${storyPlot ? `where ${storyPlot} ` : ""}in ${pages} separate parts.
 
   Respond in JSON by placing an array in a key called story that holds each part. 
   Each array element contains 
     a paragraph key: the paragraph, 
-    a description key: a list of the physical entities in the scene (excluding the protagonist), 
+    a description key: a list of the physical entities in the scene and what they look like in string format, 
     and a background key: a short description of the surroundings.`;
     console.log("Prompt being given to ollama: ", fullPrompt);
     const story = await (0, apis_1.getStoryPages)(fullPrompt, model);

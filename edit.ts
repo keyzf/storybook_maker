@@ -1,8 +1,10 @@
 import { createInterface } from "node:readline";
+import { exec } from "child_process";
 import { writeFile, readFile, access } from "node:fs/promises";
 import { argv } from "node:process";
 import terminate from "terminate";
 import { getTemplate } from "./template/templateGenerator";
+import sharp from "sharp";
 
 // Script to edit a created story - allows for the user to choose the best images for the story.
 
@@ -10,7 +12,7 @@ async function editStory() {
   const path = argv[2];
   await access(path);
   const editedPath = path.replace("./", "");
-  const open = await import("open").then((m) => m.default);
+  const open = await import("open");
   const chosenBlobs: Buffer[] = [];
   // Prompt the user to choose the best images for the story.
   const iface = createInterface({
@@ -24,9 +26,8 @@ async function editStory() {
 
   for (const [index, storyPage] of story.entries()) {
     console.log("Story Page: ", storyPage);
-    const imageProcess = await open(
-      `${process.cwd()}/${editedPath}/${index}-0.png`,
-      { allowNonzeroExitCode: true }
+    const imageProcess = exec(
+      `/usr/bin/display ${process.cwd()}/${editedPath}/${index}-0.png`
     );
 
     let imageNumber: number = null;
@@ -41,9 +42,11 @@ async function editStory() {
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
 
-    terminate(imageProcess.pid);
+    terminate(imageProcess.pid, "SIGKILL");
     chosenBlobs.push(
-      await readFile(`./${editedPath}/${index}-${imageNumber}.png`)
+      await sharp(`./${editedPath}/${index}-${imageNumber}.png`)
+        .jpeg({ quality: 98 })
+        .toBuffer()
     );
   }
 
