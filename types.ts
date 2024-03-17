@@ -1,5 +1,5 @@
 export type StoryPage = {
   paragraph: string;
   background: string;
-  description: string[];
+  other_characters?: string;
 };

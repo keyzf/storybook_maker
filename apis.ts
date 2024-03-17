@@ -28,7 +28,7 @@ export async function getStoryPages(
   }: {
     story: Array<StoryPage>;
   } = JSON.parse(oolamaJson.response);
-  console.log("Ollama response:", story);
+  console.log("Ollama response:", JSON.stringify(story, null, 2));
 
   return story;
 }
@@ -56,6 +56,7 @@ export async function getStableDiffusionImageBlob({
   lora,
   loraWeight,
   hero,
+  heroDescription,
   physicalDescription,
   useRegions,
   urlBase = "127.0.0.1:7860",
@@ -69,13 +70,14 @@ export async function getStableDiffusionImageBlob({
   lora: string;
   loraWeight: string;
   hero: string;
+  heroDescription: string;
   physicalDescription: string;
   useRegions: boolean;
   urlBase?: string;
 }): Promise<Blob> {
   const generatedPrompt = useRegions
     ? prompt
-    : `<lora:${lora}:${loraWeight}>${prompt}, ${storyPage.paragraph}, easyphoto_face, ${physicalDescription}, ${storyPage.background}, ${storyPage.description}`;
+    : `<lora:${lora}:${loraWeight}>easyphoto_face, ${physicalDescription}, ${heroDescription}, ${storyPage.paragraph}, ${storyPage.background}, ${prompt}`;
 
   console.log("### Prompt: ", generatedPrompt);
 
@@ -85,14 +87,14 @@ export async function getStableDiffusionImageBlob({
     body: JSON.stringify({
       prompt: generatedPrompt,
       negative_prompt:
-        "multiple people, lowres, text, error, cropped, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, out of frame, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck, username, watermark, signature, split frame, multiple frame, split panel, multi panel, cropped, diptych, triptych, nude, naked",
+        "lowres, text, error, cropped, morbid, mutilated, out of frame, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, bad proportions, extra limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck, username, watermark, signature, split frame, multiple frame, split panel, multi panel, nude, naked",
       seed: -1,
       // Specifying the model here appears to break batching.
       // model: modelStableDiffusion,
       sampler_name: sampler,
       batch_size: /*useRegions ?*/ 3 /*: 6*/, // TODO: Make this configurable - but I think 1 will break things.
       steps,
-      cfg_scale: 18,
+      cfg_scale: 20,
       width: Number(width),
       height: Number(height),
       restore_faces: true,
@@ -103,10 +105,11 @@ export async function getStableDiffusionImageBlob({
       ...(!useRegions
         ? {
             enable_hr: true,
-            denoising_strength: 0.4,
+            // TODO: .4 or .5?
+            denoising_strength: 0.3,
+            hr_second_pass_steps: 20,
             hr_scale: 1.5,
             hr_upscaler: "Latent",
-            hr_second_pass_steps: 0,
           }
         : {}),
       alwayson_scripts: {

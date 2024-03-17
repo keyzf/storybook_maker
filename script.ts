@@ -35,7 +35,7 @@ program
   .option(
     "-pd, --physicalDescription <description>",
     "physical description of the protagonist - used in rendering",
-    "easyphoto_face, 1person, solo"
+    "1boy, white, toddler, solo"
   )
   .option("-pg, --pages <page>", "number of pages to generate", "5")
   .option("-l, --lora <lora>", "lora to use", "gavin-15")
@@ -43,7 +43,7 @@ program
   .option(
     "-pr, --prompt <prompt>",
     `additional details to provide to the prompt - should just specify what the overall image looks like`,
-    "masterpiece, best quality, highres, extremely clear 8k wallpaper"
+    ""
   )
   .option("-s, --sampler <sampler>", "sampler to use", "DPM++ 2M Karras")
   .option("-st, --steps <steps>", "number of steps to use in rendering", "40")
@@ -99,10 +99,10 @@ async function makeStory() {
   }in ${pages} separate parts. Do not describe hair, eye, or skin colour.
 
   Respond in JSON by placing an array in a key called story that holds each part. 
-  Each array element contains 
-    a paragraph key: the paragraph, 
-    a description key: an array of plaintext detailed descriptions of the other people or animals that are visible, 
-    and a background key: a short description of the surroundings.`;
+  Each array element contains an object with the following strings:
+    paragraph: the paragraph, 
+    other_characters: a description of what other people or animals in the paragraph look like, 
+    background: a detailed description of the surroundings.`;
   console.log("Prompt being given to ollama: ", fullPrompt);
 
   const story = await getStoryPages(fullPrompt, model);
@@ -120,9 +120,9 @@ async function makeStory() {
 
   for (const [index, storyPage] of story.entries()) {
     console.log(storyPage);
-    storyPage.description = storyPage.description.filter(
-      (x) => !x.includes(hero)
-    );
+    storyPage.other_characters = storyPage?.other_characters?.includes(hero)
+      ? ""
+      : storyPage.other_characters;
 
     const imageBlob = await getStableDiffusionImageBlob({
       prompt,
@@ -134,10 +134,11 @@ async function makeStory() {
       lora,
       loraWeight,
       hero,
+      heroDescription,
       physicalDescription,
       // We can go faster if we only use regions every few pages.
       // Can also end up with some better action shots as a result.
-      useRegions: storyPage.description.length > 0,
+      useRegions: storyPage.other_characters && index % 2 === 0,
       urlBase: "127.0.0.1:7860",
     });
 

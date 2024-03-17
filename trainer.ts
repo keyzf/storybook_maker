@@ -28,7 +28,7 @@ async function runTrainer(name: string, path: string) {
     `outputs/easyphoto-user-id-infos/${name}/user_weights/pytorch_lora_weights.safetensors`
   );
   // A bit hacky, but give it an extra couple of seconds to ensure it's finished before killing the process.
-  await new Promise((resolve) => setTimeout(resolve, 2000));
+  await new Promise((resolve) => setTimeout(resolve, 5000));
   await webUi.stopProcess();
   return 0;
 }

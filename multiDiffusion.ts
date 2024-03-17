@@ -52,11 +52,7 @@ export function getMultiDiffusionScriptArgs({
   hero: string;
   physicalDescription: string;
 }) {
-  const filteredDescription = storyPage.description.filter(
-    (x) => !x.includes(hero)
-  );
-
-  const heroPrompt = `<lora:${lora}:${loraWeight}>${storyPage.paragraph}, easyphoto_face, ${physicalDescription}`;
+  const heroPrompt = `<lora:${lora}:${loraWeight}>easyphoto_face, ${physicalDescription}`;
 
   return {
     "Tiled Diffusion": {
@@ -89,28 +85,28 @@ export function getMultiDiffusionScriptArgs({
         ...[
           // Background layer
           ...getRegion({
-            prompt: `${storyPage.background}, ${storyPage.paragraph}`,
+            prompt: ` ${storyPage.paragraph}, ${storyPage.background}`,
             blendMode: "Background",
           }),
 
           // Protagonist layer
-          ...(filteredDescription.length > 0
+          ...(storyPage.other_characters?.length
             ? [
                 // The protagonist is front and center of this.
                 ...getRegion({
                   x: 0.0,
-                  y: 0.3,
-                  w: 1.0,
-                  h: 0.7,
+                  y: 0.1,
+                  w: 0.7,
+                  h: 0.9,
                   prompt: heroPrompt,
                 }),
                 // Other person/character
                 ...getRegion({
-                  x: 0.0,
-                  y: 0.0,
-                  w: 1.0,
-                  h: 0.3,
-                  prompt: filteredDescription[0],
+                  x: 0.55,
+                  y: 0.2,
+                  w: 0.45,
+                  h: 0.7,
+                  prompt: storyPage.other_characters,
                 }),
               ]
             : [
