@@ -4,8 +4,9 @@ import { readdir, readFile } from "node:fs/promises";
 
 export async function getOllamaString(
   prompt: string,
-  model: string
-): Promise<string> {
+  model: string,
+  context?: number[]
+): Promise<{ response: string; context: number[] }> {
   console.log("### ollama request:", prompt);
   const ollamaResp = await fetch("http://localhost:11434/api/generate", {
     method: "POST",
@@ -14,7 +15,8 @@ export async function getOllamaString(
       prompt: prompt,
       stream: false,
       format: "json",
-      keep_alive: "5s",
+      keep_alive: "3s",
+      context,
     }),
   });
 
@@ -25,20 +27,28 @@ export async function getOllamaString(
   }
 
   console.log("### ollama response", ollamaJson.response);
-  return ollamaJson.response;
+  return {
+    response: ollamaJson.response,
+    context: ollamaJson.context,
+  };
 }
 
 export async function getStoryPages(
   prompt: string,
   model: string
-): Promise<StoryPage[]> {
+): Promise<{ response: StoryPage[]; context: number[] }> {
+  const resp = await getOllamaString(prompt, model);
+
   const {
     story,
   }: {
     story: Array<StoryPage>;
-  } = JSON.parse(await getOllamaString(prompt, model));
+  } = JSON.parse(resp.response);
 
-  return story;
+  return {
+    response: story,
+    context: resp.context,
+  };
 }
 
 export async function setStableDiffusionModelCheckpoint(
@@ -65,6 +75,7 @@ export async function getStableDiffusionImageBlob({
   loraWeight,
   hero,
   physicalDescription,
+  characterDescriptionMap,
   useRegions,
   urlBase = "127.0.0.1:7860",
 }: {
@@ -78,6 +89,7 @@ export async function getStableDiffusionImageBlob({
   loraWeight: string;
   hero: string;
   physicalDescription: string;
+  characterDescriptionMap: Record<string, string>;
   useRegions: boolean;
   urlBase?: string;
 }): Promise<Blob> {
@@ -98,9 +110,9 @@ export async function getStableDiffusionImageBlob({
       // Specifying the model here appears to break batching.
       // model: modelStableDiffusion,
       sampler_name: sampler,
-      batch_size: 6, //useRegions ? 3 : 6 // TODO: Make this configurable - but I think 1 will break things.
+      batch_size: 4, //useRegions ? 3 : 6 // TODO: Make this configurable - but I think 1 will break things.
       steps: steps, // useRegions ? Math.floor(Number(steps) * 0.75) : steps,
-      cfg_scale: 16,
+      cfg_scale: 18,
       width: Number(width),
       height: Number(height),
       restore_faces: true,
@@ -126,8 +138,8 @@ export async function getStableDiffusionImageBlob({
               storyPage,
               lora,
               loraWeight,
-              hero,
               physicalDescription,
+              characterDescriptionMap,
             })
           : {}),
         // TODO: Add some kind of configurability support to controlnet via options.

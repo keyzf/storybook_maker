@@ -23,11 +23,12 @@ commander_1.program
     .option("-lw, --loraWeight", "weight of the lora", "1")
     .option("-pr, --prompt <prompt>", `additional details to provide to the prompt - should just specify what the overall image looks like`, "")
     .option("-s, --sampler <sampler>", "sampler to use", "DPM++ 2M Karras")
-    .option("-st, --steps <steps>", "number of steps to use in rendering", "40")
+    .option("-st, --steps <steps>", "number of steps to use in rendering", "45")
     .option("-x, --width <width>", "width of the image", "512")
     .option("-y, --height <height>", "height of the image", "768")
     .parse();
 async function makeStory() {
+    var _a, _b;
     const opts = commander_1.program.opts();
     console.log("Options: ", opts);
     const { model, modelStableDiffusion, genre, storyPlot, hero, heroDescription, physicalDescription, pages, lora, loraWeight, prompt, sampler, steps, width, height, } = commander_1.program.opts();
@@ -40,41 +41,69 @@ async function makeStory() {
     paragraph: the paragraph,
     paragraph_tags: descriptive comma separated tags describing ${hero},
     background: descriptive comma separated tags describing the background`;
-    const story = await (0, apis_1.getStoryPages)(fullPrompt, model);
+    let currentContext = null;
+    const { response: story, context: storyContext } = await (0, apis_1.getStoryPages)(fullPrompt, model);
+    currentContext = storyContext;
+    const characterNamePromopt = `Tell me names we can use to refer to the people and animals in the story.
+    Respond in JSON by placing a an array of the names as strings in a key called names`;
+    const characterNamesResp = await (0, apis_1.getOllamaString)(characterNamePromopt, model, storyContext);
+    const characterNameRespJson = JSON.parse(characterNamesResp.response);
+    currentContext = characterNamesResp.context;
+    const characterDescriptionMap = {};
     for (const [index, { paragraph }] of Object.entries(story)) {
         const checkPrompt = `Using this paragraph, tell me whether any people or animals other than ${hero} are visible: "${paragraph}".
-       Respond in JSON with the following keys:
+      Refer to them by name from this list: ${characterNameRespJson.names.join(",")}. 
+      Respond in JSON with the following keys:
         people: a list of the people visible,
         animals: a list of the visible animals
     `;
-        const checkResp = await (0, apis_1.getOllamaString)(checkPrompt, model);
-        const checkRespJson = JSON.parse(checkResp);
+        const checkResp = await (0, apis_1.getOllamaString)(checkPrompt, model, currentContext);
+        currentContext = checkResp.context;
+        const checkRespJson = JSON.parse(checkResp.response);
         const filteredCharacters = [
-            ...checkRespJson.people.filter((x) => !x.toLowerCase().includes(hero.toLowerCase())),
-            ...checkRespJson.animals.filter((x) => !x.toLowerCase().includes(hero.toLowerCase())),
+            ...(_a = checkRespJson.people) === null || _a === void 0 ? void 0 : _a.filter((x) => { var _a; return !((_a = x === null || x === void 0 ? void 0 : x.toLowerCase()) === null || _a === void 0 ? void 0 : _a.includes(hero.toLowerCase())); }),
+            ...(_b = checkRespJson.animals) === null || _b === void 0 ? void 0 : _b.filter((x) => { var _a; return !((_a = x === null || x === void 0 ? void 0 : x.toLowerCase()) === null || _a === void 0 ? void 0 : _a.includes(hero.toLowerCase())); }),
         ];
         if (!filteredCharacters.length) {
             story[index].other_characters = null;
             continue;
         }
-        const descriptionPrompt = `Be creative and make up simple verbs and nouns describing what ${filteredCharacters[0]} looks like and can be seen doing in this paragraph: "${paragraph}". 
-     Do not describe ${hero}."
+        for (const character of filteredCharacters) {
+            if (!characterDescriptionMap[character]) {
+                const descriptionPrompt = `Be creative and use simple verbs and nouns to describe what ${character} looks like. 
+         Do not describe ${hero}.
+         Respond in JSON with the following keys:
+           description: the description 
+        `;
+                const characterDescription = await (0, apis_1.getOllamaString)(descriptionPrompt, model, currentContext);
+                const characterDescriptionJson = JSON.parse(characterDescription.response);
+                currentContext = characterDescription.context;
+                characterDescriptionMap[character] =
+                    characterDescriptionJson.description.toString();
+            }
+        }
+        const descriptionPrompt = `Be creative and use simple verbs and nouns to describe how ${filteredCharacters[0]} would react to this paragraph: "${paragraph}". 
+     Do not describe ${hero}.
      Respond in JSON with the following keys:
-       description: the description in simple comma separated tags
+       description: the description 
     `;
         //const descriptionPrompt = "say poop";
-        const description = await (0, apis_1.getOllamaString)(descriptionPrompt, model);
-        const descriptionJson = JSON.parse(description);
-        story[index].other_characters = descriptionJson.description;
+        const description = await (0, apis_1.getOllamaString)(descriptionPrompt, model, currentContext);
+        const descriptionJson = JSON.parse(description.response);
+        currentContext = description.context;
+        story[index].other_characters = descriptionJson.description.toString();
         // FIXME: Better naming here - this should be more like the physical description I think
-        const heroDescriptionPrompt = `Be creative and make up simple verbs and nouns describing what ${hero} looks like and can be seen doing in this paragraph: "${paragraph}" 
-      Ensure we respect their description: ${physicalDescription}. Do not describe ${filteredCharacters[0]}
+        const heroDescriptionPrompt = `Be creative and use simple verbs and nouns to describe how ${hero} would react to this paragraph: "${paragraph}" 
+      Ensure we respect their description: ${physicalDescription}. 
+      Do not describe ${filteredCharacters[0]}.
       Respond in JSON with the following keys:
-        description: the description in simple comma separated tags`;
-        const heroDescription = await (0, apis_1.getOllamaString)(heroDescriptionPrompt, model);
-        const heroDescriptionJson = JSON.parse(heroDescription);
-        story[index].paragraph_tags = heroDescriptionJson.description;
+        description: the description`;
+        const heroDescription = await (0, apis_1.getOllamaString)(heroDescriptionPrompt, model, currentContext);
+        currentContext = heroDescription.context;
+        const heroDescriptionJson = JSON.parse(heroDescription.response);
+        story[index].paragraph_tags = heroDescriptionJson.description.toString();
     }
+    console.log("### Character Descriptions: ", JSON.stringify(characterDescriptionMap, null, 2));
     const directoryPath = Math.floor(Date.now() / 1000).toString();
     await (0, promises_1.mkdir)(`./stories/${directoryPath}`, { recursive: true });
     const webUi = new WebUiManager_1.WebUiManager();
@@ -95,6 +124,7 @@ async function makeStory() {
             loraWeight,
             hero,
             physicalDescription,
+            characterDescriptionMap,
             // We can go faster if we only use regions every few pages.
             // Can also end up with some better action shots as a result.
             useRegions: !!storyPage.other_characters,

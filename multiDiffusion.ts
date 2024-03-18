@@ -41,41 +41,48 @@ export function getMultiDiffusionScriptArgs({
   storyPage,
   lora,
   loraWeight,
-  hero,
   physicalDescription,
+  characterDescriptionMap,
 }: {
   width: number;
   height: number;
   storyPage: StoryPage;
   lora: string;
   loraWeight: string;
-  hero: string;
   physicalDescription: string;
+  characterDescriptionMap: Record<string, string>;
 }) {
   const heroPrompt = `<lora:${lora}:${loraWeight}>easyphoto_face, ${physicalDescription}, ${storyPage.paragraph_tags}`;
-
+  const targetedCharacterKeys = Object.keys(characterDescriptionMap);
+  const targetedCharacterDescription = Object.entries(
+    characterDescriptionMap
+  ).find(([key]) => targetedCharacterKeys.includes(key));
   console.log("### Using mulitdiffusion");
+  console.log("### Background Prompt: ", storyPage.background);
   console.log("### Hero Prompt: ", heroPrompt);
-  console.log("### Other Characters Prompt: ", storyPage.other_characters);
+  console.log(
+    "### Other Characters Prompt: ",
+    `${targetedCharacterDescription} ${storyPage.other_characters.toString()}`
+  );
 
   return {
     "Tiled Diffusion": {
       // TODO: type this?
       args: [
         "True", // enabled - bool
-        "Mixture of Diffusers", // method - str ("Mixture of Diffusers" or "MultiDiffusion")
-        "False", // overwrite_size - bool
-        "True", // keep_input_size - bool
-        Number(width), // image_width - int
-        Number(height), // image_height - int
+        "MultiDiffusion", // method - str ("Mixture of Diffusers" or "MultiDiffusion")
+        "True", // overwrite_size - bool
+        "False", // keep_input_size - bool
+        Number(width * 1.5), // image_width - int
+        Number(height * 1.5), // image_height - int
 
         // Don't think these do anything while Region control is active.
         96, // tile_width - int
         96, // tile_height - int
         48, // overlap - int
         8, // tile_batch_size - int
-        "None", // upscaler_name - str
-        1, // scale_factor - float
+        "Lanczos", // upscaler_name - str
+        1.5, // scale_factor - float
         "False", // noise_inverse - bool
         10, // noise_inverse_steps - int
         1, // noise inverse_retouch - float
@@ -83,7 +90,7 @@ export function getMultiDiffusionScriptArgs({
         64, // noise_inverse_renoise_kernel - int
         "False", // control_tensor_cpu - bool
         "True", // enable_bbox_control - bool
-        "True", // draw_background - bool
+        "False", // draw_background - bool
         "False", // causual_layers - bool
 
         ...[
@@ -96,17 +103,19 @@ export function getMultiDiffusionScriptArgs({
           ...getRegion({
             x: 0.0,
             y: 0.1,
-            w: 0.7,
+            w: 0.6,
             h: 0.9,
             prompt: heroPrompt,
           }),
           // Other person/character
           ...getRegion({
-            x: 0.67,
-            y: 0.0,
-            w: 0.33,
-            h: 0.33,
-            prompt: storyPage.other_characters.toString(),
+            x: 0.4,
+            y: 0.1,
+            w: 0.6,
+            h: 0.9,
+            prompt: `${targetedCharacterDescription[0]} ${
+              targetedCharacterDescription[1]
+            } ${storyPage.other_characters.toString()}`,
           }),
         ],
       ],
