@@ -2,33 +2,41 @@ import { getMultiDiffusionScriptArgs } from "./multiDiffusion";
 import { StoryPage } from "./types";
 import { readdir, readFile } from "node:fs/promises";
 
-export async function getStoryPages(
+export async function getOllamaString(
   prompt: string,
   model: string
-): Promise<StoryPage[]> {
-  const oolamaResp = await fetch("http://localhost:11434/api/generate", {
+): Promise<string> {
+  console.log("### ollama request:", prompt);
+  const ollamaResp = await fetch("http://localhost:11434/api/generate", {
     method: "POST",
     body: JSON.stringify({
       model,
       prompt: prompt,
       stream: false,
       format: "json",
-      keep_alive: "0",
+      keep_alive: "5s",
     }),
   });
 
-  const oolamaJson = await oolamaResp.json();
-  if (oolamaJson.error) {
-    console.log("Error from Oolama:", oolamaJson.error);
-    throw "Error from Oolama.";
+  const ollamaJson = await ollamaResp.json();
+  if (ollamaJson.error) {
+    console.log("Error from ollama:", ollamaJson.error);
+    throw "Error from ollama.";
   }
 
+  console.log("### ollama response", ollamaJson.response);
+  return ollamaJson.response;
+}
+
+export async function getStoryPages(
+  prompt: string,
+  model: string
+): Promise<StoryPage[]> {
   const {
     story,
   }: {
     story: Array<StoryPage>;
-  } = JSON.parse(oolamaJson.response);
-  console.log("Ollama response:", JSON.stringify(story, null, 2));
+  } = JSON.parse(await getOllamaString(prompt, model));
 
   return story;
 }
@@ -56,7 +64,6 @@ export async function getStableDiffusionImageBlob({
   lora,
   loraWeight,
   hero,
-  heroDescription,
   physicalDescription,
   useRegions,
   urlBase = "127.0.0.1:7860",
@@ -70,16 +77,15 @@ export async function getStableDiffusionImageBlob({
   lora: string;
   loraWeight: string;
   hero: string;
-  heroDescription: string;
   physicalDescription: string;
   useRegions: boolean;
   urlBase?: string;
 }): Promise<Blob> {
   const generatedPrompt = useRegions
     ? prompt
-    : `<lora:${lora}:${loraWeight}>easyphoto_face, ${physicalDescription}, ${heroDescription}, ${storyPage.paragraph}, ${storyPage.background}, ${prompt}`;
+    : `<lora:${lora}:${loraWeight}>easyphoto_face, ${physicalDescription}, ${storyPage.paragraph_tags}, ${storyPage.background}, ${prompt}`;
 
-  console.log("### Prompt: ", generatedPrompt);
+  if (!useRegions) console.log("### Prompt: ", generatedPrompt);
 
   const sdTxt2ImgResp = await fetch(`http://${urlBase}/sdapi/v1/txt2img`, {
     method: "POST",
@@ -87,14 +93,14 @@ export async function getStableDiffusionImageBlob({
     body: JSON.stringify({
       prompt: generatedPrompt,
       negative_prompt:
-        "lowres, text, error, cropped, morbid, mutilated, out of frame, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, bad proportions, extra limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck, username, watermark, signature, split frame, multiple frame, split panel, multi panel, nude, naked",
+        "lowres, text, error, cropped, morbid, mutilated, out of frame, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, bad proportions, extra limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck, username, watermark, signature, split frame, multiple frame, split panel, multi panel",
       seed: -1,
       // Specifying the model here appears to break batching.
       // model: modelStableDiffusion,
       sampler_name: sampler,
-      batch_size: /*useRegions ?*/ 3 /*: 6*/, // TODO: Make this configurable - but I think 1 will break things.
-      steps,
-      cfg_scale: 20,
+      batch_size: 6, //useRegions ? 3 : 6 // TODO: Make this configurable - but I think 1 will break things.
+      steps: steps, // useRegions ? Math.floor(Number(steps) * 0.75) : steps,
+      cfg_scale: 16,
       width: Number(width),
       height: Number(height),
       restore_faces: true,
@@ -106,8 +112,8 @@ export async function getStableDiffusionImageBlob({
         ? {
             enable_hr: true,
             // TODO: .4 or .5?
-            denoising_strength: 0.3,
-            hr_second_pass_steps: 20,
+            denoising_strength: 0.45,
+            hr_second_pass_steps: steps,
             hr_scale: 1.5,
             hr_upscaler: "Latent",
           }

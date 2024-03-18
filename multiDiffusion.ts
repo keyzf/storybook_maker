@@ -52,14 +52,18 @@ export function getMultiDiffusionScriptArgs({
   hero: string;
   physicalDescription: string;
 }) {
-  const heroPrompt = `<lora:${lora}:${loraWeight}>easyphoto_face, ${physicalDescription}`;
+  const heroPrompt = `<lora:${lora}:${loraWeight}>easyphoto_face, ${physicalDescription}, ${storyPage.paragraph_tags}`;
+
+  console.log("### Using mulitdiffusion");
+  console.log("### Hero Prompt: ", heroPrompt);
+  console.log("### Other Characters Prompt: ", storyPage.other_characters);
 
   return {
     "Tiled Diffusion": {
       // TODO: type this?
       args: [
         "True", // enabled - bool
-        "MultiDiffusion", // method - str ("Mixture of Diffusers" or "MultiDiffusion")
+        "Mixture of Diffusers", // method - str ("Mixture of Diffusers" or "MultiDiffusion")
         "False", // overwrite_size - bool
         "True", // keep_input_size - bool
         Number(width), // image_width - int
@@ -79,47 +83,31 @@ export function getMultiDiffusionScriptArgs({
         64, // noise_inverse_renoise_kernel - int
         "False", // control_tensor_cpu - bool
         "True", // enable_bbox_control - bool
-        "False", // draw_background - bool
+        "True", // draw_background - bool
         "False", // causual_layers - bool
 
         ...[
           // Background layer
           ...getRegion({
-            prompt: ` ${storyPage.paragraph}, ${storyPage.background}`,
+            prompt: storyPage.background,
             blendMode: "Background",
           }),
-
-          // Protagonist layer
-          ...(storyPage.other_characters?.length
-            ? [
-                // The protagonist is front and center of this.
-                ...getRegion({
-                  x: 0.0,
-                  y: 0.1,
-                  w: 0.7,
-                  h: 0.9,
-                  prompt: heroPrompt,
-                }),
-                // Other person/character
-                ...getRegion({
-                  x: 0.55,
-                  y: 0.2,
-                  w: 0.45,
-                  h: 0.7,
-                  prompt: storyPage.other_characters,
-                }),
-              ]
-            : [
-                // Protagonist is front and center of this.
-                // We shouldn't end up here anymore, really.
-                ...getRegion({
-                  x: 0.2,
-                  y: 0.1,
-                  w: 0.8,
-                  h: 0.8,
-                  prompt: heroPrompt,
-                }),
-              ]),
+          // The protagonist is front and center of this.
+          ...getRegion({
+            x: 0.0,
+            y: 0.1,
+            w: 0.7,
+            h: 0.9,
+            prompt: heroPrompt,
+          }),
+          // Other person/character
+          ...getRegion({
+            x: 0.67,
+            y: 0.0,
+            w: 0.33,
+            h: 0.33,
+            prompt: storyPage.other_characters.toString(),
+          }),
         ],
       ],
       "Tiled VAE": {

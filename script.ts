@@ -4,6 +4,7 @@ import {
   getStableDiffusionImageBlob,
   getStoryPages,
   setStableDiffusionModelCheckpoint,
+  getOllamaString,
 } from "./apis";
 import { getTemplate } from "./template/templateGenerator";
 import { WebUiManager } from "./WebUiManager";
@@ -29,12 +30,12 @@ program
   .option("-h, --hero <name>", "name of the protagonist", "Gavin")
   .option(
     "-hd, --heroDescription <description>",
-    "description of the protagonist, used in the story",
+    "description of the protagonist for the story",
     "a boy toddler"
   )
   .option(
     "-pd, --physicalDescription <description>",
-    "physical description of the protagonist - used in rendering",
+    "tag based description of the protagonist for rendering",
     "1boy, white, toddler, solo"
   )
   .option("-pg, --pages <page>", "number of pages to generate", "5")
@@ -100,12 +101,62 @@ async function makeStory() {
 
   Respond in JSON by placing an array in a key called story that holds each part. 
   Each array element contains an object with the following strings:
-    paragraph: the paragraph, 
-    other_characters: a description of what other people or animals in the paragraph look like, 
-    background: a detailed description of the surroundings.`;
-  console.log("Prompt being given to ollama: ", fullPrompt);
+    paragraph: the paragraph,
+    paragraph_tags: descriptive comma separated tags describing ${hero},
+    background: descriptive comma separated tags describing the background`;
 
   const story = await getStoryPages(fullPrompt, model);
+
+  for (const [index, { paragraph }] of Object.entries(story)) {
+    const checkPrompt = `Using this paragraph, tell me whether any people or animals other than ${hero} are visible: "${paragraph}".
+       Respond in JSON with the following keys:
+        people: a list of the people visible,
+        animals: a list of the visible animals
+    `;
+    const checkResp = await getOllamaString(checkPrompt, model);
+    const checkRespJson: {
+      people: string[];
+      animals: string[];
+    } = JSON.parse(checkResp);
+
+    const filteredCharacters = [
+      ...checkRespJson.people.filter(
+        (x) => !x.toLowerCase().includes(hero.toLowerCase())
+      ),
+      ...checkRespJson.animals.filter(
+        (x) => !x.toLowerCase().includes(hero.toLowerCase())
+      ),
+    ];
+
+    if (!filteredCharacters.length) {
+      story[index].other_characters = null;
+      continue;
+    }
+
+    const descriptionPrompt = `Be creative and make up simple verbs and nouns describing what ${filteredCharacters[0]} looks like and can be seen doing in this paragraph: "${paragraph}". 
+     Do not describe ${hero}."
+     Respond in JSON with the following keys:
+       description: the description in simple comma separated tags
+    `;
+    //const descriptionPrompt = "say poop";
+    const description = await getOllamaString(descriptionPrompt, model);
+    const descriptionJson: {
+      description: string;
+    } = JSON.parse(description);
+
+    story[index].other_characters = descriptionJson.description;
+
+    // FIXME: Better naming here - this should be more like the physical description I think
+    const heroDescriptionPrompt = `Be creative and make up simple verbs and nouns describing what ${hero} looks like and can be seen doing in this paragraph: "${paragraph}" 
+      Ensure we respect their description: ${physicalDescription}. Do not describe ${filteredCharacters[0]}
+      Respond in JSON with the following keys:
+        description: the description in simple comma separated tags`;
+    const heroDescription = await getOllamaString(heroDescriptionPrompt, model);
+    const heroDescriptionJson: {
+      description: string;
+    } = JSON.parse(heroDescription);
+    story[index].paragraph_tags = heroDescriptionJson.description;
+  }
 
   const directoryPath = Math.floor(Date.now() / 1000).toString();
   await mkdir(`./stories/${directoryPath}`, { recursive: true });
@@ -120,9 +171,6 @@ async function makeStory() {
 
   for (const [index, storyPage] of story.entries()) {
     console.log(storyPage);
-    storyPage.other_characters = storyPage?.other_characters?.includes(hero)
-      ? ""
-      : storyPage.other_characters;
 
     const imageBlob = await getStableDiffusionImageBlob({
       prompt,
@@ -134,11 +182,10 @@ async function makeStory() {
       lora,
       loraWeight,
       hero,
-      heroDescription,
       physicalDescription,
       // We can go faster if we only use regions every few pages.
       // Can also end up with some better action shots as a result.
-      useRegions: storyPage.other_characters && index % 2 === 0,
+      useRegions: !!storyPage.other_characters,
       urlBase: "127.0.0.1:7860",
     });
 

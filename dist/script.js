@@ -16,8 +16,8 @@ commander_1.program
     .option("-g, --genre <title>", "genre of the story", "children's story")
     .option("-p, --storyPlot <prompt>", "suggested plot for the hero of the story", "")
     .option("-h, --hero <name>", "name of the protagonist", "Gavin")
-    .option("-hd, --heroDescription <description>", "description of the protagonist, used in the story", "a boy toddler")
-    .option("-pd, --physicalDescription <description>", "physical description of the protagonist - used in rendering", "1boy, white, toddler, solo")
+    .option("-hd, --heroDescription <description>", "description of the protagonist for the story", "a boy toddler")
+    .option("-pd, --physicalDescription <description>", "tag based description of the protagonist for rendering", "1boy, white, toddler, solo")
     .option("-pg, --pages <page>", "number of pages to generate", "5")
     .option("-l, --lora <lora>", "lora to use", "gavin-15")
     .option("-lw, --loraWeight", "weight of the lora", "1")
@@ -28,7 +28,6 @@ commander_1.program
     .option("-y, --height <height>", "height of the image", "768")
     .parse();
 async function makeStory() {
-    var _a;
     const opts = commander_1.program.opts();
     console.log("Options: ", opts);
     const { model, modelStableDiffusion, genre, storyPlot, hero, heroDescription, physicalDescription, pages, lora, loraWeight, prompt, sampler, steps, width, height, } = commander_1.program.opts();
@@ -38,11 +37,44 @@ async function makeStory() {
 
   Respond in JSON by placing an array in a key called story that holds each part. 
   Each array element contains an object with the following strings:
-    paragraph: the paragraph, 
-    other_characters: a description of what other people or animals in the paragraph look like, 
-    background: a detailed description of the surroundings.`;
-    console.log("Prompt being given to ollama: ", fullPrompt);
+    paragraph: the paragraph,
+    paragraph_tags: descriptive comma separated tags describing ${hero},
+    background: descriptive comma separated tags describing the background`;
     const story = await (0, apis_1.getStoryPages)(fullPrompt, model);
+    for (const [index, { paragraph }] of Object.entries(story)) {
+        const checkPrompt = `Using this paragraph, tell me whether any people or animals other than ${hero} are visible: "${paragraph}".
+       Respond in JSON with the following keys:
+        people: a list of the people visible,
+        animals: a list of the visible animals
+    `;
+        const checkResp = await (0, apis_1.getOllamaString)(checkPrompt, model);
+        const checkRespJson = JSON.parse(checkResp);
+        const filteredCharacters = [
+            ...checkRespJson.people.filter((x) => !x.toLowerCase().includes(hero.toLowerCase())),
+            ...checkRespJson.animals.filter((x) => !x.toLowerCase().includes(hero.toLowerCase())),
+        ];
+        if (!filteredCharacters.length) {
+            story[index].other_characters = null;
+            continue;
+        }
+        const descriptionPrompt = `Be creative and make up simple verbs and nouns describing what ${filteredCharacters[0]} looks like and can be seen doing in this paragraph: "${paragraph}". 
+     Do not describe ${hero}."
+     Respond in JSON with the following keys:
+       description: the description in simple comma separated tags
+    `;
+        //const descriptionPrompt = "say poop";
+        const description = await (0, apis_1.getOllamaString)(descriptionPrompt, model);
+        const descriptionJson = JSON.parse(description);
+        story[index].other_characters = descriptionJson.description;
+        // FIXME: Better naming here - this should be more like the physical description I think
+        const heroDescriptionPrompt = `Be creative and make up simple verbs and nouns describing what ${hero} looks like and can be seen doing in this paragraph: "${paragraph}" 
+      Ensure we respect their description: ${physicalDescription}. Do not describe ${filteredCharacters[0]}
+      Respond in JSON with the following keys:
+        description: the description in simple comma separated tags`;
+        const heroDescription = await (0, apis_1.getOllamaString)(heroDescriptionPrompt, model);
+        const heroDescriptionJson = JSON.parse(heroDescription);
+        story[index].paragraph_tags = heroDescriptionJson.description;
+    }
     const directoryPath = Math.floor(Date.now() / 1000).toString();
     await (0, promises_1.mkdir)(`./stories/${directoryPath}`, { recursive: true });
     const webUi = new WebUiManager_1.WebUiManager();
@@ -52,9 +84,6 @@ async function makeStory() {
     await (0, apis_1.setStableDiffusionModelCheckpoint)(modelStableDiffusion);
     for (const [index, storyPage] of story.entries()) {
         console.log(storyPage);
-        storyPage.other_characters = ((_a = storyPage === null || storyPage === void 0 ? void 0 : storyPage.other_characters) === null || _a === void 0 ? void 0 : _a.includes(hero))
-            ? ""
-            : storyPage.other_characters;
         const imageBlob = await (0, apis_1.getStableDiffusionImageBlob)({
             prompt,
             sampler,
@@ -65,11 +94,10 @@ async function makeStory() {
             lora,
             loraWeight,
             hero,
-            heroDescription,
             physicalDescription,
             // We can go faster if we only use regions every few pages.
             // Can also end up with some better action shots as a result.
-            useRegions: storyPage.other_characters && index % 2 === 0,
+            useRegions: !!storyPage.other_characters,
             urlBase: "127.0.0.1:7860",
         });
         for (const [imageIndex, image] of Object.entries(JSON.parse(await imageBlob.text()).images)) {
