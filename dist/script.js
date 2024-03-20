@@ -23,12 +23,12 @@ commander_1.program
     .option("-lw, --loraWeight", "weight of the lora", "1")
     .option("-pr, --prompt <prompt>", `additional details to provide to the prompt - should just specify what the overall image looks like`, "")
     .option("-s, --sampler <sampler>", "sampler to use", "DPM++ 2M Karras")
-    .option("-st, --steps <steps>", "number of steps to use in rendering", "45")
+    .option("-st, --steps <steps>", "number of steps to use in rendering", "50")
     .option("-x, --width <width>", "width of the image", "512")
-    .option("-y, --height <height>", "height of the image", "768")
+    .option("-y, --height <height>", "height of the image", "512")
     .parse();
 async function makeStory() {
-    var _a, _b;
+    var _a, _b, _c;
     const opts = commander_1.program.opts();
     console.log("Options: ", opts);
     const { model, modelStableDiffusion, genre, storyPlot, hero, heroDescription, physicalDescription, pages, lora, loraWeight, prompt, sampler, steps, width, height, } = commander_1.program.opts();
@@ -37,10 +37,11 @@ async function makeStory() {
     const fullPrompt = `Make me a ${genre} about ${heroDescription} named ${hero} ${storyPlot ? `where ${storyPlot} ` : ""}in ${pages} separate parts. Do not describe hair, eye, or skin colour.
 
   Respond in JSON by placing an array in a key called story that holds each part. 
-  Each array element contains an object with the following strings:
-    paragraph: the paragraph,
-    paragraph_tags: descriptive comma separated tags describing ${hero},
-    background: descriptive comma separated tags describing the background`;
+  Each array element contains an object with the following format: {
+    "paragraph": the paragraph,
+    "paragraph_tags": descriptive comma separated tags describing ${hero},
+    "background": descriptive comma separated tags describing the background
+  }`;
     let currentContext = null;
     const { response: story, context: storyContext } = await (0, apis_1.getStoryPages)(fullPrompt, model);
     currentContext = storyContext;
@@ -53,16 +54,17 @@ async function makeStory() {
     for (const [index, { paragraph }] of Object.entries(story)) {
         const checkPrompt = `Using this paragraph, tell me whether any people or animals other than ${hero} are visible: "${paragraph}".
       Refer to them by name from this list: ${characterNameRespJson.names.join(",")}. 
-      Respond in JSON with the following keys:
-        people: a list of the people visible,
-        animals: a list of the visible animals
+      Respond in JSON with the following format: {
+        "people": a list of the people,
+        "animals": a list of the animals
+      }
     `;
         const checkResp = await (0, apis_1.getOllamaString)(checkPrompt, model, currentContext);
         currentContext = checkResp.context;
         const checkRespJson = JSON.parse(checkResp.response);
         const filteredCharacters = [
-            ...(_a = checkRespJson.people) === null || _a === void 0 ? void 0 : _a.filter((x) => { var _a; return !((_a = x === null || x === void 0 ? void 0 : x.toLowerCase()) === null || _a === void 0 ? void 0 : _a.includes(hero.toLowerCase())); }),
-            ...(_b = checkRespJson.animals) === null || _b === void 0 ? void 0 : _b.filter((x) => { var _a; return !((_a = x === null || x === void 0 ? void 0 : x.toLowerCase()) === null || _a === void 0 ? void 0 : _a.includes(hero.toLowerCase())); }),
+            ...(((_a = checkRespJson === null || checkRespJson === void 0 ? void 0 : checkRespJson.people) === null || _a === void 0 ? void 0 : _a.filter((x) => { var _a; return !((_a = x === null || x === void 0 ? void 0 : x.toLowerCase()) === null || _a === void 0 ? void 0 : _a.includes(hero.toLowerCase())); })) || []),
+            ...(((_b = checkRespJson === null || checkRespJson === void 0 ? void 0 : checkRespJson.animals) === null || _b === void 0 ? void 0 : _b.filter((x) => { var _a; return !((_a = x === null || x === void 0 ? void 0 : x.toLowerCase()) === null || _a === void 0 ? void 0 : _a.includes(hero.toLowerCase())); })) || []),
         ];
         if (!filteredCharacters.length) {
             story[index].other_characters = null;
@@ -70,22 +72,25 @@ async function makeStory() {
         }
         for (const character of filteredCharacters) {
             if (!characterDescriptionMap[character]) {
-                const descriptionPrompt = `Be creative and use simple verbs and nouns to describe what ${character} looks like. 
+                const descriptionPrompt = `Be creative and use simple verbs and nouns to describe what ${character} looks like.
+         Include their gender as "a man", or "a woman".  
          Do not describe ${hero}.
-         Respond in JSON with the following keys:
-           description: the description 
+         Respond in JSON with the following format: {
+           "description": the description as a string
+         }
         `;
                 const characterDescription = await (0, apis_1.getOllamaString)(descriptionPrompt, model, currentContext);
                 const characterDescriptionJson = JSON.parse(characterDescription.response);
                 currentContext = characterDescription.context;
                 characterDescriptionMap[character] =
-                    characterDescriptionJson.description.toString();
+                    (_c = characterDescriptionJson === null || characterDescriptionJson === void 0 ? void 0 : characterDescriptionJson.description) === null || _c === void 0 ? void 0 : _c.toString();
             }
         }
         const descriptionPrompt = `Be creative and use simple verbs and nouns to describe how ${filteredCharacters[0]} would react to this paragraph: "${paragraph}". 
      Do not describe ${hero}.
-     Respond in JSON with the following keys:
-       description: the description 
+     Respond in JSON with the following format: {
+       "description": the description as a string
+     }
     `;
         //const descriptionPrompt = "say poop";
         const description = await (0, apis_1.getOllamaString)(descriptionPrompt, model, currentContext);
@@ -96,8 +101,9 @@ async function makeStory() {
         const heroDescriptionPrompt = `Be creative and use simple verbs and nouns to describe how ${hero} would react to this paragraph: "${paragraph}" 
       Ensure we respect their description: ${physicalDescription}. 
       Do not describe ${filteredCharacters[0]}.
-      Respond in JSON with the following keys:
-        description: the description`;
+      Respond in JSON with the following format: {
+        "description": the description as a string
+      }`;
         const heroDescription = await (0, apis_1.getOllamaString)(heroDescriptionPrompt, model, currentContext);
         currentContext = heroDescription.context;
         const heroDescriptionJson = JSON.parse(heroDescription.response);
@@ -113,7 +119,7 @@ async function makeStory() {
     await (0, apis_1.setStableDiffusionModelCheckpoint)(modelStableDiffusion);
     for (const [index, storyPage] of story.entries()) {
         console.log(storyPage);
-        const imageBlob = await (0, apis_1.getStableDiffusionImageBlob)({
+        const images = await (0, apis_1.getStableDiffusionImages)({
             prompt,
             sampler,
             steps,
@@ -122,7 +128,6 @@ async function makeStory() {
             storyPage,
             lora,
             loraWeight,
-            hero,
             physicalDescription,
             characterDescriptionMap,
             // We can go faster if we only use regions every few pages.
@@ -130,7 +135,7 @@ async function makeStory() {
             useRegions: !!storyPage.other_characters,
             urlBase: "127.0.0.1:7860",
         });
-        for (const [imageIndex, image] of Object.entries(JSON.parse(await imageBlob.text()).images)) {
+        for (const [imageIndex, image] of images) {
             await (0, promises_1.writeFile)(`./stories/${directoryPath}/${index}-${imageIndex}.png`, Buffer.from(image, "base64"));
             if (!imageBlobs[index])
                 imageBlobs[index] = [Buffer.from(image, "base64")];

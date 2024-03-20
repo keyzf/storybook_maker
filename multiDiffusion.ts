@@ -57,12 +57,12 @@ export function getMultiDiffusionScriptArgs({
   const targetedCharacterDescription = Object.entries(
     characterDescriptionMap
   ).find(([key]) => targetedCharacterKeys.includes(key));
-  console.log("### Using mulitdiffusion");
+  console.log("### Using multi diffusion");
   console.log("### Background Prompt: ", storyPage.background);
   console.log("### Hero Prompt: ", heroPrompt);
   console.log(
     "### Other Characters Prompt: ",
-    `${targetedCharacterDescription} ${storyPage.other_characters.toString()}`
+    `${targetedCharacterDescription} ${storyPage?.other_characters?.toString()}`
   );
 
   return {
@@ -71,23 +71,23 @@ export function getMultiDiffusionScriptArgs({
       args: [
         "True", // enabled - bool
         "MultiDiffusion", // method - str ("Mixture of Diffusers" or "MultiDiffusion")
-        "True", // overwrite_size - bool
+        "False", // overwrite_size - bool
         "False", // keep_input_size - bool
-        Number(width * 1.5), // image_width - int
-        Number(height * 1.5), // image_height - int
+        Number(width), // image_width - int
+        Number(height), // image_height - int
 
         // Don't think these do anything while Region control is active.
         96, // tile_width - int
         96, // tile_height - int
         48, // overlap - int
         8, // tile_batch_size - int
-        "Lanczos", // upscaler_name - str
-        1.5, // scale_factor - float
-        "False", // noise_inverse - bool
-        10, // noise_inverse_steps - int
-        1, // noise inverse_retouch - float
-        1, // noise_inverse_renoise_strength - float
-        64, // noise_inverse_renoise_kernel - int
+        "R-ESRGAN 4x+", // upscaler_name - str
+        2, // scale_factor - float
+        null, // noise_inverse - bool
+        null, // noise_inverse_steps - int
+        null, // noise inverse_retouch - float
+        null, // noise_inverse_renoise_strength - float
+        null, // noise_inverse_renoise_kernel - int
         "False", // control_tensor_cpu - bool
         "True", // enable_bbox_control - bool
         "False", // draw_background - bool
@@ -115,7 +115,7 @@ export function getMultiDiffusionScriptArgs({
             h: 0.9,
             prompt: `${targetedCharacterDescription[0]} ${
               targetedCharacterDescription[1]
-            } ${storyPage.other_characters.toString()}`,
+            } ${storyPage?.other_characters?.toString()}`,
           }),
         ],
       ],

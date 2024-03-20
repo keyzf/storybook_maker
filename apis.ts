@@ -2,6 +2,14 @@ import { getMultiDiffusionScriptArgs } from "./multiDiffusion";
 import { StoryPage } from "./types";
 import { readdir, readFile } from "node:fs/promises";
 
+type sdResponse = {
+  images: string[];
+  parameters: {
+    prompt: string;
+    negative_prompt: string;
+  };
+};
+
 export async function getOllamaString(
   prompt: string,
   model: string,
@@ -64,7 +72,7 @@ export async function setStableDiffusionModelCheckpoint(
   });
 }
 
-export async function getStableDiffusionImageBlob({
+export async function getStableDiffusionImages({
   prompt,
   sampler,
   steps,
@@ -73,7 +81,6 @@ export async function getStableDiffusionImageBlob({
   storyPage,
   lora,
   loraWeight,
-  hero,
   physicalDescription,
   characterDescriptionMap,
   useRegions,
@@ -87,47 +94,50 @@ export async function getStableDiffusionImageBlob({
   storyPage: StoryPage;
   lora: string;
   loraWeight: string;
-  hero: string;
   physicalDescription: string;
   characterDescriptionMap: Record<string, string>;
   useRegions: boolean;
   urlBase?: string;
-}): Promise<Blob> {
+}): Promise<string[]> {
   const generatedPrompt = useRegions
     ? prompt
     : `<lora:${lora}:${loraWeight}>easyphoto_face, ${physicalDescription}, ${storyPage.paragraph_tags}, ${storyPage.background}, ${prompt}`;
 
   if (!useRegions) console.log("### Prompt: ", generatedPrompt);
 
+  // If regions are being used then use fewer steps.
+
+  const sharedSettings = {
+    prompt: generatedPrompt,
+    negative_prompt:
+      "lowres, text, error, cropped, morbid, mutilated, out of frame, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, bad proportions, extra limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck, username, watermark, signature, split frame, multiple frame, split panel, multi panel",
+    seed: -1,
+    sampler_name: sampler,
+    batch_size: 3,
+    steps: !useRegions ? steps : Math.floor(Number(steps) / 2),
+    cfg_scale: 18,
+    width: Number(width),
+    height: Number(height),
+    restore_faces: true,
+    disable_extra_networks: false,
+    send_images: true,
+    save_images: true,
+  };
+
   const sdTxt2ImgResp = await fetch(`http://${urlBase}/sdapi/v1/txt2img`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      prompt: generatedPrompt,
-      negative_prompt:
-        "lowres, text, error, cropped, morbid, mutilated, out of frame, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, bad proportions, extra limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck, username, watermark, signature, split frame, multiple frame, split panel, multi panel",
-      seed: -1,
-      // Specifying the model here appears to break batching.
-      // model: modelStableDiffusion,
-      sampler_name: sampler,
-      batch_size: 4, //useRegions ? 3 : 6 // TODO: Make this configurable - but I think 1 will break things.
-      steps: steps, // useRegions ? Math.floor(Number(steps) * 0.75) : steps,
-      cfg_scale: 18,
-      width: Number(width),
-      height: Number(height),
-      restore_faces: true,
-      // refiner_switch_at: 0.8,
-      disable_extra_networks: false,
-      send_images: true,
-      save_images: true,
+      ...sharedSettings,
+      batchSize: 3,
       ...(!useRegions
         ? {
             enable_hr: true,
             // TODO: .4 or .5?
             denoising_strength: 0.45,
-            hr_second_pass_steps: steps,
-            hr_scale: 1.5,
-            hr_upscaler: "Latent",
+            //hr_second_pass_steps: steps,
+            hr_scale: 2,
+            hr_upscaler: "R-ESRGAN 4x+",
           }
         : {}),
       alwayson_scripts: {
@@ -142,26 +152,6 @@ export async function getStableDiffusionImageBlob({
               characterDescriptionMap,
             })
           : {}),
-        // TODO: Add some kind of configurability support to controlnet via options.
-        // We currently only apply controlnet to paragraphs that mention the hero, since we're using it for clothing consistency.
-        /*...(paragraph.description.includes(hero) && {
-            controlnet: {
-              // Docs: https://github.com/Mikubill/sd-webui-controlnet/wiki/API#integrating-sdapiv12img
-              args: [
-                {
-                  module: "ip-adapter_clip_sd15",
-                  model: "ip-adapter_sd15 [6a3f6166]",
-                  weight: 1,
-                  resize_mode: 2,
-                  lowvram: true,
-                  pixel_perfect: true,
-                  guidance_start: 0.05,
-                  guidance_end: 0.15,
-                  input_image: "/home/kyle/Pictures/shirt_and_jeans.png",
-                },
-              ],
-            },
-          }),*/
       },
     }),
   });
@@ -175,7 +165,56 @@ export async function getStableDiffusionImageBlob({
     throw "Unexpected status code from stable diffusion API.";
   }
 
-  return sdTxt2ImgResp.blob();
+  const txt2ImgJson: sdResponse = await sdTxt2ImgResp.json();
+
+  // Return if we're not using regions, otherwise we should use img2img to resize the images.
+  if (!useRegions) return txt2ImgJson.images;
+
+  // Keep the preview images even though they will change
+  const resizedImages: string[] =
+    txt2ImgJson.images.length > 1 ? [txt2ImgJson.images[0]] : [];
+
+  // TODO: Just go through the batches one by one, if denoise is low enough it doesn't take that long.
+  for (const [index, image] of txt2ImgJson.images.entries()) {
+    // Skip the big preview image.
+    if (index === 0 && txt2ImgJson.images.length > 1) continue;
+
+    const sdImg2ImgResp = await fetch(`http://${urlBase}/sdapi/v1/img2img`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...sharedSettings,
+        batch_size: 1,
+        denoising_strength: 0.35, // Default is 0.75 - lower goes faster, higher might be better.
+        init_images: [image],
+        alwayson_scripts: {
+          ...getMultiDiffusionScriptArgs({
+            width: Number(width),
+            height: Number(height),
+            storyPage,
+            lora,
+            loraWeight,
+            physicalDescription,
+            characterDescriptionMap,
+          }),
+        },
+      }),
+    });
+
+    if (sdImg2ImgResp.status !== 200) {
+      console.log(
+        "Unexpected status code: ",
+        sdImg2ImgResp,
+        await sdImg2ImgResp.json()
+      );
+      throw "Unexpected status code from stable diffusion API.";
+    }
+
+    const img2ImgJson: sdResponse = await sdImg2ImgResp.json();
+    resizedImages.push(img2ImgJson.images[0]);
+  }
+
+  return resizedImages;
 }
 
 export async function trainStableDiffusionLora(
