@@ -44,7 +44,7 @@ export class WebUiManager {
     }
 
     // Wait another second because sometimes it's not quite ready yet.
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 2500));
   }
 
   async monitorLogsTill(condition: string): Promise<void> {

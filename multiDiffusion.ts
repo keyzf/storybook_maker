@@ -105,6 +105,7 @@ export function getMultiDiffusionScriptArgs({
             y: 0.1,
             w: 0.6,
             h: 0.9,
+            featherRatio: 0.1,
             prompt: heroPrompt,
           }),
           // Other person/character
@@ -113,15 +114,16 @@ export function getMultiDiffusionScriptArgs({
             y: 0.1,
             w: 0.6,
             h: 0.9,
+            featherRatio: 0.3,
             prompt: `${targetedCharacterDescription[0]} ${
               targetedCharacterDescription[1]
             } ${storyPage?.other_characters?.toString()}`,
           }),
         ],
       ],
-      "Tiled VAE": {
+      /*"Tiled VAE": {
         args: ["True", "True", "True", "True", "False", 2048, 192],
-      },
+      },*/
     },
   };
 }

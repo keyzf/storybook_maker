@@ -98,9 +98,14 @@ const template = `
   }
 
   @media (min-width: 600px) {
-    div.container {
+    div.container-left {
       flex-direction: row;
-      width: 50%;
+      width: 40%;
+    }
+
+    div.container-right {
+      flex-direction: row;
+      width: 60%;
     }
 
     div.story {
@@ -182,14 +187,14 @@ const template = `
 function getStoryPage(paragraph: string, imageBlob: Buffer): string {
   return `
   <div class="page active">
-    <div class="container active">
+    <div class="container container-left active">
       <div class="story">
         <h1 class="text">
           ${paragraph}
         </h1>
         </div>
       </div>
-      <div class="container">
+      <div class="container container-right">
         <div class="picture">
           <img src="data:image/png;base64, ${imageBlob.toString("base64")}" />
         </div>

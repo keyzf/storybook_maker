@@ -103,9 +103,7 @@ export async function getStableDiffusionImages({
     ? prompt
     : `<lora:${lora}:${loraWeight}>easyphoto_face, ${physicalDescription}, ${storyPage.paragraph_tags}, ${storyPage.background}, ${prompt}`;
 
-  if (!useRegions) console.log("### Prompt: ", generatedPrompt);
-
-  // If regions are being used then use fewer steps.
+  console.log("### Base Prompt: ", generatedPrompt);
 
   const sharedSettings = {
     prompt: generatedPrompt,
@@ -113,9 +111,9 @@ export async function getStableDiffusionImages({
       "lowres, text, error, cropped, morbid, mutilated, out of frame, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, bad proportions, extra limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck, username, watermark, signature, split frame, multiple frame, split panel, multi panel",
     seed: -1,
     sampler_name: sampler,
-    batch_size: 3,
-    steps: !useRegions ? steps : Math.floor(Number(steps) / 2),
-    cfg_scale: 18,
+    // If regions are being used then use fewer steps.
+    steps,
+    cfg_scale: 16,
     width: Number(width),
     height: Number(height),
     restore_faces: true,
@@ -129,13 +127,13 @@ export async function getStableDiffusionImages({
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       ...sharedSettings,
-      batchSize: 3,
+      batch_size: 1,
       ...(!useRegions
         ? {
             enable_hr: true,
             // TODO: .4 or .5?
-            denoising_strength: 0.45,
-            //hr_second_pass_steps: steps,
+            denoising_strength: 0.5,
+            hr_second_pass_steps: 0,
             hr_scale: 2,
             hr_upscaler: "R-ESRGAN 4x+",
           }
@@ -185,7 +183,7 @@ export async function getStableDiffusionImages({
       body: JSON.stringify({
         ...sharedSettings,
         batch_size: 1,
-        denoising_strength: 0.35, // Default is 0.75 - lower goes faster, higher might be better.
+        denoising_strength: 0.5, // Default is 0.75 - lower goes faster, higher might be better.
         init_images: [image],
         alwayson_scripts: {
           ...getMultiDiffusionScriptArgs({
