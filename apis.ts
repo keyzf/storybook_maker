@@ -82,6 +82,7 @@ function getSharedStableDiffusionSettings({
   loraWeight,
   physicalDescription,
   storyPage,
+  sampler,
 }) {
   const basePrompt = useRegions
     ? prompt
@@ -99,6 +100,7 @@ function getSharedStableDiffusionSettings({
     height: Number(height),
     restore_faces: true,
     disable_extra_networks: false,
+    sampler_name: sampler,
     send_images: true,
     save_images: true,
     denoisingStrength: 0.5,
@@ -114,6 +116,7 @@ export async function getStableDiffusionImages({
   lora,
   loraWeight,
   physicalDescription,
+  sampler,
   useRegions,
   urlBase = "127.0.0.1:7860",
 }: {
@@ -125,6 +128,7 @@ export async function getStableDiffusionImages({
   lora: string;
   loraWeight: string;
   physicalDescription: string;
+  sampler: string;
   useRegions: boolean;
   urlBase?: string;
 }): Promise<string[]> {
@@ -136,6 +140,7 @@ export async function getStableDiffusionImages({
     lora,
     loraWeight,
     physicalDescription,
+    sampler,
     storyPage,
     useRegions,
   });
@@ -146,8 +151,8 @@ export async function getStableDiffusionImages({
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       ...sharedSettings,
-      batch_size: 4,
-      ...(!useRegions
+      batch_size: 6,
+      /*...(!useRegions
         ? {
             enable_hr: true,
             // TODO: .4 or .5?
@@ -156,7 +161,7 @@ export async function getStableDiffusionImages({
             hr_scale: 2,
             hr_upscaler: "R-ESRGAN 4x+",
           }
-        : {}),
+        : {}),*/
       alwayson_scripts: {
         ...(useRegions
           ? getMultiDiffusionScriptArgs({
@@ -166,6 +171,7 @@ export async function getStableDiffusionImages({
               lora,
               loraWeight,
               physicalDescription,
+              useRegions,
             })
           : {}),
       },
@@ -216,12 +222,12 @@ export async function getUpscaledStableDiffusionImages({
   for (const [index, image] of images.entries()) {
     const useRegions = !!storyPages[index].other_characters?.length;
 
-    if (!useRegions) {
+    /*if (!useRegions) {
       // We fix the image when the story is generated for the non regioned stuff
       // so just return the image.
       resizedImages.push(image);
       continue;
-    }
+    }*/
 
     const sharedSettings = getSharedStableDiffusionSettings({
       prompt,
@@ -231,6 +237,7 @@ export async function getUpscaledStableDiffusionImages({
       lora,
       loraWeight,
       physicalDescription,
+      sampler,
       storyPage: storyPages[index],
       useRegions,
     });
@@ -242,7 +249,6 @@ export async function getUpscaledStableDiffusionImages({
         ...sharedSettings,
         batch_size: 1,
         denoising_strength: sharedSettings.denoisingStrength,
-        sampler: sampler,
         init_images: [image],
         alwayson_scripts: {
           ...getMultiDiffusionScriptArgs({
@@ -252,6 +258,7 @@ export async function getUpscaledStableDiffusionImages({
             lora,
             loraWeight,
             physicalDescription,
+            useRegions,
           }),
         },
       }),

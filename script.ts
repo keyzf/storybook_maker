@@ -160,7 +160,7 @@ async function makeStory() {
       ) || []),
     ];
 
-    const backgroundPrompt = `Be creative and describe what the scene looks like in this paragraph: "${paragraph}".
+    const backgroundPrompt = `Be creative and in a sentence or two describe what the scene looks like in this paragraph in a sentence or two: "${paragraph}".
       Do not describe ${hero}.
       Respond in JSON with the following format: {
         "background": the description as a string - do not return an array
@@ -205,7 +205,7 @@ async function makeStory() {
     }
 
     if (filteredCharacters[0]) {
-      const descriptionPrompt = `Be creative and describe how ${filteredCharacters[0]} would react to this paragraph: "${paragraph}". 
+      const descriptionPrompt = `Be creative and in a sentence or two describe how ${filteredCharacters[0]} would react to this paragraph: "${paragraph}". 
         Do not describe ${hero}.
         Respond in JSON with the following format: {
           "description": the description as a string - do not return an array
@@ -234,7 +234,7 @@ async function makeStory() {
     }
 
     // FIXME: Better naming here - this should be more like the physical description I think
-    const heroDescriptionPrompt = `Be creative and describe how ${hero} would react to this paragraph: "${paragraph}" 
+    const heroDescriptionPrompt = `Be creative and in a sentence or two describe how ${hero} would react to this paragraph: "${paragraph}" 
       Ensure we respect their description: ${physicalDescription}. 
       Do not describe hair, eye, or skin colour.
       ${
@@ -285,6 +285,7 @@ async function makeStory() {
       storyPage,
       lora,
       loraWeight,
+      sampler,
       physicalDescription,
       useRegions: !!storyPage.other_characters,
       urlBase: "127.0.0.1:7860",

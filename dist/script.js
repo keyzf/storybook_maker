@@ -67,7 +67,7 @@ async function makeStory() {
             ...(((_a = checkRespJson.people) === null || _a === void 0 ? void 0 : _a.filter((x) => { var _a; return !((_a = x === null || x === void 0 ? void 0 : x.toLowerCase()) === null || _a === void 0 ? void 0 : _a.includes(hero.toLowerCase())); })) || []),
             ...(((_b = checkRespJson.animals) === null || _b === void 0 ? void 0 : _b.filter((x) => { var _a; return !((_a = x === null || x === void 0 ? void 0 : x.toLowerCase()) === null || _a === void 0 ? void 0 : _a.includes(hero.toLowerCase())); })) || []),
         ];
-        const backgroundPrompt = `Be creative and describe what the scene looks like in this paragraph: "${paragraph}".
+        const backgroundPrompt = `Be creative and in a sentence or two describe what the scene looks like in this paragraph in a sentence or two: "${paragraph}".
       Do not describe ${hero}.
       Respond in JSON with the following format: {
         "background": the description as a string - do not return an array
@@ -98,7 +98,7 @@ async function makeStory() {
             }
         }
         if (filteredCharacters[0]) {
-            const descriptionPrompt = `Be creative and describe how ${filteredCharacters[0]} would react to this paragraph: "${paragraph}". 
+            const descriptionPrompt = `Be creative and in a sentence or two describe how ${filteredCharacters[0]} would react to this paragraph: "${paragraph}". 
         Do not describe ${hero}.
         Respond in JSON with the following format: {
           "description": the description as a string - do not return an array
@@ -117,7 +117,7 @@ async function makeStory() {
                 .toString()}`;
         }
         // FIXME: Better naming here - this should be more like the physical description I think
-        const heroDescriptionPrompt = `Be creative and describe how ${hero} would react to this paragraph: "${paragraph}" 
+        const heroDescriptionPrompt = `Be creative and in a sentence or two describe how ${hero} would react to this paragraph: "${paragraph}" 
       Ensure we respect their description: ${physicalDescription}. 
       Do not describe hair, eye, or skin colour.
       ${filteredCharacters[0] ? `Do not describe ${filteredCharacters[0]}.` : ""}
@@ -150,6 +150,7 @@ async function makeStory() {
             storyPage,
             lora,
             loraWeight,
+            sampler,
             physicalDescription,
             useRegions: !!storyPage.other_characters,
             urlBase: "127.0.0.1:7860",
@@ -162,24 +163,25 @@ async function makeStory() {
                 imageBlobs[index].push(Buffer.from(image, "base64"));
         }
     }
+    // TODO: Need to make the template be ready for this.
     // Make up a title page image for the story.
-    const titlePageImages = await (0, apis_1.getStableDiffusionImages)({
-        prompt,
-        steps,
-        width,
-        height,
-        storyPage: {
-            paragraph: ``,
-            paragraph_tags: physicalDescription,
-            background: "a vibrant sunset",
-            other_characters: [],
-        },
-        lora,
-        loraWeight,
-        physicalDescription: `looking at the camera, smiling, ${physicalDescription}`,
-        useRegions: false,
-        urlBase: "127.0.0.1:7860",
-    });
+    /*const titlePageImages = await getStableDiffusionImages({
+      prompt,
+      steps,
+      width,
+      height,
+      storyPage: {
+        paragraph: ``,
+        paragraph_tags: physicalDescription,
+        background: "a vibrant sunset",
+        other_characters: [],
+      },
+      lora,
+      loraWeight,
+      physicalDescription: `looking at the camera, smiling, ${physicalDescription}`,
+      useRegions: false,
+      urlBase: "127.0.0.1:7860",
+    });*/
     const storyMetadata = {
         characterDescriptionMap,
         lora,
@@ -194,7 +196,12 @@ async function makeStory() {
     };
     await Promise.all([
         (0, promises_1.writeFile)(`./stories/${directoryPath}/index.html`, (0, templateGenerator_1.getTemplate)(story, false)),
-        ...titlePageImages.map((image, index) => (0, promises_1.writeFile)(`./stories/${directoryPath}/title-${index}.png`, Buffer.from(image, "base64"))),
+        /*...titlePageImages.map((image, index) =>
+          writeFile(
+            `./stories/${directoryPath}/title-${index}.png`,
+            Buffer.from(image as string, "base64")
+          )
+        ),*/
         (0, promises_1.writeFile)(`./stories/${directoryPath}/story.json`, JSON.stringify(story)),
         (0, promises_1.writeFile)(`./stories/${directoryPath}/metadata.json`, JSON.stringify(storyMetadata)),
         (0, promises_1.copyFile)("./template/HobbyHorseNF.otf", `./stories/${directoryPath}/HobbyHorseNF.otf`),

@@ -42,6 +42,7 @@ export function getMultiDiffusionScriptArgs({
   lora,
   loraWeight,
   physicalDescription,
+  useRegions,
 }: {
   width: number;
   height: number;
@@ -49,6 +50,7 @@ export function getMultiDiffusionScriptArgs({
   lora: string;
   loraWeight: string;
   physicalDescription: string;
+  useRegions: boolean;
 }) {
   const heroPrompt = `<lora:${lora}:${loraWeight}>easyphoto_face, ${physicalDescription}, ${storyPage.paragraph_tags}`;
   console.log("### Background Prompt: ", storyPage.background);
@@ -82,33 +84,37 @@ export function getMultiDiffusionScriptArgs({
         null, // noise_inverse_renoise_strength - float
         null, // noise_inverse_renoise_kernel - int
         "False", // control_tensor_cpu - bool
-        "True", // enable_bbox_control - bool
+        useRegions ? "True" : "False", // enable_bbox_control - bool
         "False", // draw_background - bool
         "False", // causual_layers - bool
 
         // Background layer
-        ...getRegion({
-          prompt: storyPage.background,
-          blendMode: "Background",
-        }),
-        // The protagonist is front and center of this.
-        ...getRegion({
-          x: 0.0,
-          y: 0.1,
-          w: 0.6,
-          h: 0.9,
-          featherRatio: 0.1,
-          prompt: heroPrompt,
-        }),
-        // Other person/character
-        ...getRegion({
-          x: 0.4,
-          y: 0.1,
-          w: 0.6,
-          h: 0.9,
-          featherRatio: 0.3,
-          prompt: storyPage.other_characters.toString(),
-        }),
+        ...(useRegions
+          ? [
+              ...getRegion({
+                prompt: storyPage.background,
+                blendMode: "Background",
+              }),
+              // The protagonist is front and center of this.
+              ...getRegion({
+                x: 0.0,
+                y: 0.1,
+                w: 0.6,
+                h: 0.9,
+                featherRatio: 0.1,
+                prompt: heroPrompt,
+              }),
+              // Other person/character
+              ...getRegion({
+                x: 0.4,
+                y: 0.1,
+                w: 0.6,
+                h: 0.9,
+                featherRatio: 0.3,
+                prompt: storyPage.other_characters.toString(),
+              }),
+            ]
+          : []),
       ],
       /*"Tiled VAE": {
         args: ["True", "True", "True", "True", "False", 2048, 192],
