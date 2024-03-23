@@ -18,9 +18,12 @@ commander_1.program
     .option("-h, --hero <name>", "name of the protagonist", "Gavin")
     .option("-hd, --heroDescription <description>", "description of the protagonist for the story", "a boy toddler")
     .option("-pd, --physicalDescription <description>", "tag based description of the protagonist for rendering", "1boy, toddler, solo")
+    .option("-sh, --support <name>", "name of the supporting character", "")
+    .option("-sd, --supportDescription <description>", "description of the supporting character for the story", "")
+    .option("-sp, --supportPhysicalDescription <description>", "tag based description of the supporting character for rendering", "")
+    .option("-l, --lora <lora>", "lora to use for the hero", "gavin-15")
+    .option("-sl, --supportLora <name>", "lora to use for the supporting character", "")
     .option("-pg, --pages <page>", "number of pages to generate", "5")
-    .option("-l, --lora <lora>", "lora to use", "gavin-15")
-    .option("-lw, --loraWeight", "weight of the lora", "1")
     .option("-pr, --prompt <prompt>", `additional details to provide to the prompt - should just specify what the overall image looks like`, "")
     .option("-s, --sampler <sampler>", "sampler to use", "DPM++ 2M Karras")
     .option("-st, --steps <steps>", "number of steps to use in rendering", "30")
@@ -31,13 +34,17 @@ async function makeStory() {
     var _a, _b;
     const opts = commander_1.program.opts();
     console.log("Options: ", opts);
-    const { model, modelStableDiffusion, genre, storyPlot, hero, heroDescription, physicalDescription, pages, lora, loraWeight, prompt, sampler, steps, width, height, } = commander_1.program.opts();
+    const { model, modelStableDiffusion, genre, storyPlot, hero, heroDescription, physicalDescription, support, supportDescription, supportPhysicalDescription, lora, supportLora, pages, prompt, sampler, steps, width, height, } = commander_1.program.opts();
     // Ensure that the targeted lora exists. Saves us time if something went wrong.
     await (0, promises_1.access)(`/home/kyle/Development/stable_diffusion/stable-diffusion-webui/models/Lora/${lora}.safetensors`);
-    const fullPrompt = `Make me a ${genre} about ${heroDescription} named ${hero} ${storyPlot ? `where ${storyPlot} ` : ""}in ${pages} separate parts. Do not describe hair, eye, or skin colour.
+    const fullPrompt = `Make me a ${genre} about ${heroDescription} named ${hero} ${storyPlot ? `where ${storyPlot} ` : ""}in ${pages} separate parts. 
+  Do not describe hair, eye, or skin colour.
+  ${support
+        ? `Include a person named ${support} that is ${supportDescription}.`
+        : ""}
 
   Respond in JSON by placing an array in a key called story that holds each part. 
-  Each array element contains an object with the following format: { "paragraph": the paragraph as a string}`;
+  Each array element contains an object with the following format: { "paragraph": the paragraph as a string }`;
     let currentContext = null;
     const { response: story, context: storyContext } = await (0, apis_1.getStoryPages)(fullPrompt, model);
     currentContext = storyContext;
@@ -45,7 +52,10 @@ async function makeStory() {
         "story_name": the name as a string
       }`, model, currentContext);
     currentContext = storyNameContext;
-    const characterNamePromopt = `Tell me names we can use to refer to the people and animals in the story. Only include important characters.
+    const characterNamePromopt = `Tell me names we can use to refer to the people and animals in the story. 
+    Only include important characters.
+    Include ${hero} in the list.
+    ${support ? `Include ${support} in the list.` : ""}
     Respond in JSON by placing a an array of the names as strings in a key called names`;
     const characterNamesResp = await (0, apis_1.getOllamaString)(characterNamePromopt, model, storyContext);
     const characterNameRespJson = JSON.parse(characterNamesResp.response);
@@ -67,22 +77,16 @@ async function makeStory() {
             ...(((_a = checkRespJson.people) === null || _a === void 0 ? void 0 : _a.filter((x) => { var _a; return !((_a = x === null || x === void 0 ? void 0 : x.toLowerCase()) === null || _a === void 0 ? void 0 : _a.includes(hero.toLowerCase())); })) || []),
             ...(((_b = checkRespJson.animals) === null || _b === void 0 ? void 0 : _b.filter((x) => { var _a; return !((_a = x === null || x === void 0 ? void 0 : x.toLowerCase()) === null || _a === void 0 ? void 0 : _a.includes(hero.toLowerCase())); })) || []),
         ];
-        const backgroundPrompt = `Be creative and in a sentence or two describe what the scene looks like in this paragraph in a sentence or two: "${paragraph}".
-      Do not describe ${hero}.
-      Respond in JSON with the following format: {
-        "background": the description as a string - do not return an array
-      }
-    `;
-        const background = await (0, apis_1.getOllamaString)(backgroundPrompt, model, currentContext);
-        const backgroundJson = JSON.parse(background.response);
-        currentContext = background.context;
-        story[index].background = backgroundJson.background;
+        if (support) {
+            characterDescriptionMap[support] = `<lora:${supportLora}:1> ${supportPhysicalDescription} ${supportDescription}`;
+        }
         for (const character of filteredCharacters) {
             if (!characterDescriptionMap[character]) {
-                const descriptionPrompt = `Be creative describe what ${character} looks like.
+                const descriptionPrompt = `Be creative and in a sentence or two describe what ${character} looks like.
          Include their gender as "a man", or "a woman".  
          Include their ethnicity.
          Do not describe ${hero}.
+
          Respond in JSON with the following format: {
            "description": the description as a string - do not return an array
          }
@@ -91,14 +95,12 @@ async function makeStory() {
                 const characterDescriptionJson = JSON.parse(characterDescription.response);
                 currentContext = characterDescription.context;
                 characterDescriptionMap[character] =
-                    characterDescriptionJson.description
-                        //.split(",")
-                        //.slice(0, 5)
-                        .toString();
+                    characterDescriptionJson.description.toString();
             }
         }
-        if (filteredCharacters[0]) {
-            const descriptionPrompt = `Be creative and in a sentence or two describe how ${filteredCharacters[0]} would react to this paragraph: "${paragraph}". 
+        if (filteredCharacters.length) {
+            const character = filteredCharacters[Math.floor(Math.random() * filteredCharacters.length)];
+            const descriptionPrompt = `Be creative and in a sentence or two describe how ${character} would react to this paragraph: "${paragraph}". 
         Do not describe ${hero}.
         Respond in JSON with the following format: {
           "description": the description as a string - do not return an array
@@ -108,14 +110,18 @@ async function makeStory() {
             const description = await (0, apis_1.getOllamaString)(descriptionPrompt, model, currentContext);
             const descriptionJson = JSON.parse(description.response);
             currentContext = description.context;
-            story[index].other_characters = `${characterDescriptionMap[filteredCharacters[0]]
-                //.split(",")
-                //.slice(0, 5)
-                .toString()} ${descriptionJson.description
-                //.split(",")
-                //.slice(0, 5)
-                .toString()}`;
+            story[index].other_characters = `${characterDescriptionMap[character].toString()} ${descriptionJson.description.toString()}`;
         }
+        const backgroundPrompt = `Be creative and in a sentence or two describe what the scene looks like in this paragraph in a sentence or two: "${paragraph}".
+    Do not describe ${hero}.
+    Respond in JSON with the following format: {
+      "background": the description as a string - do not return an array
+    }
+  `;
+        const background = await (0, apis_1.getOllamaString)(backgroundPrompt, model, currentContext);
+        const backgroundJson = JSON.parse(background.response);
+        currentContext = background.context;
+        story[index].background = backgroundJson.background;
         // FIXME: Better naming here - this should be more like the physical description I think
         const heroDescriptionPrompt = `Be creative and in a sentence or two describe how ${hero} would react to this paragraph: "${paragraph}" 
       Ensure we respect their description: ${physicalDescription}. 
@@ -127,10 +133,7 @@ async function makeStory() {
         const heroDescription = await (0, apis_1.getOllamaString)(heroDescriptionPrompt, model, currentContext);
         currentContext = heroDescription.context;
         const heroDescriptionJson = JSON.parse(heroDescription.response);
-        story[index].paragraph_tags = heroDescriptionJson.description
-            //.split(",")
-            //.slice(0, 5)
-            .toString();
+        story[index].hero_description = heroDescriptionJson.description.toString();
     }
     console.log("### Character Descriptions: ", JSON.stringify(characterDescriptionMap, null, 2));
     const directoryPath = Math.floor(Date.now() / 1000).toString();
@@ -149,7 +152,6 @@ async function makeStory() {
             height,
             storyPage,
             lora,
-            loraWeight,
             sampler,
             physicalDescription,
             useRegions: !!storyPage.other_characters,
@@ -172,7 +174,7 @@ async function makeStory() {
       height,
       storyPage: {
         paragraph: ``,
-        paragraph_tags: physicalDescription,
+        hero_description: physicalDescription,
         background: "a vibrant sunset",
         other_characters: [],
       },
@@ -185,7 +187,6 @@ async function makeStory() {
     const storyMetadata = {
         characterDescriptionMap,
         lora,
-        loraWeight,
         steps,
         sampler,
         width,

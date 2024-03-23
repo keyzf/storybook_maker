@@ -40,7 +40,6 @@ export function getMultiDiffusionScriptArgs({
   height,
   storyPage,
   lora,
-  loraWeight,
   physicalDescription,
   useRegions,
 }: {
@@ -48,17 +47,18 @@ export function getMultiDiffusionScriptArgs({
   height: number;
   storyPage: StoryPage;
   lora: string;
-  loraWeight: string;
   physicalDescription: string;
   useRegions: boolean;
 }) {
-  const heroPrompt = `<lora:${lora}:${loraWeight}>easyphoto_face, ${physicalDescription}, ${storyPage.paragraph_tags}`;
-  console.log("### Background Prompt: ", storyPage.background);
-  console.log("### Hero Prompt: ", heroPrompt);
-  console.log(
-    "### Other Characters Prompt: ",
-    storyPage?.other_characters?.toString()
-  );
+  const heroPrompt = `<lora:${lora}:1>${physicalDescription}, ${storyPage.hero_description}`;
+  if (useRegions) {
+    console.log("### Background Prompt: ", storyPage.background);
+    console.log("### Hero Prompt: ", heroPrompt);
+    console.log(
+      "### Other Characters Prompt: ",
+      storyPage?.other_characters?.toString()
+    );
+  }
 
   return {
     "Tiled Diffusion": {

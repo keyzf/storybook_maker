@@ -64,7 +64,6 @@ async function editStory() {
 
   const upscaledImages = await getUpscaledStableDiffusionImages({
     lora: metadata.lora,
-    loraWeight: metadata.loraWeight,
     steps: metadata.steps,
     width: Number(metadata.width),
     height: Number(metadata.height),

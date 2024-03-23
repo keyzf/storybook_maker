@@ -79,14 +79,13 @@ function getSharedStableDiffusionSettings({
   height,
   useRegions,
   lora,
-  loraWeight,
   physicalDescription,
   storyPage,
   sampler,
 }) {
   const basePrompt = useRegions
     ? prompt
-    : `<lora:${lora}:${loraWeight}>easyphoto_face, ${physicalDescription}, ${storyPage.paragraph_tags}, ${storyPage.background}, ${prompt}`;
+    : `<lora:${lora}:1>${physicalDescription}, ${storyPage.hero_description}, ${storyPage.background}, ${prompt}`;
   console.log("### Base prompt", basePrompt);
 
   return {
@@ -114,7 +113,6 @@ export async function getStableDiffusionImages({
   height,
   storyPage,
   lora,
-  loraWeight,
   physicalDescription,
   sampler,
   useRegions,
@@ -126,7 +124,6 @@ export async function getStableDiffusionImages({
   height: string;
   storyPage: StoryPage;
   lora: string;
-  loraWeight: string;
   physicalDescription: string;
   sampler: string;
   useRegions: boolean;
@@ -138,7 +135,6 @@ export async function getStableDiffusionImages({
     width,
     height,
     lora,
-    loraWeight,
     physicalDescription,
     sampler,
     storyPage,
@@ -151,17 +147,7 @@ export async function getStableDiffusionImages({
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       ...sharedSettings,
-      batch_size: 6,
-      /*...(!useRegions
-        ? {
-            enable_hr: true,
-            // TODO: .4 or .5?
-            denoising_strength: sharedSettings.denoisingStrength,
-            hr_second_pass_steps: 0,
-            hr_scale: 2,
-            hr_upscaler: "R-ESRGAN 4x+",
-          }
-        : {}),*/
+      batch_size: 5,
       alwayson_scripts: {
         ...(useRegions
           ? getMultiDiffusionScriptArgs({
@@ -169,7 +155,6 @@ export async function getStableDiffusionImages({
               height: Number(height),
               storyPage,
               lora,
-              loraWeight,
               physicalDescription,
               useRegions,
             })
@@ -200,7 +185,6 @@ export async function getUpscaledStableDiffusionImages({
   prompt,
   steps,
   lora,
-  loraWeight,
   physicalDescription,
   sampler,
   urlBase = "127.0.0.1:7860",
@@ -212,7 +196,6 @@ export async function getUpscaledStableDiffusionImages({
   prompt: string;
   steps: string;
   lora: string;
-  loraWeight: string;
   physicalDescription: string;
   sampler: string;
   urlBase?: string;
@@ -222,20 +205,12 @@ export async function getUpscaledStableDiffusionImages({
   for (const [index, image] of images.entries()) {
     const useRegions = !!storyPages[index].other_characters?.length;
 
-    /*if (!useRegions) {
-      // We fix the image when the story is generated for the non regioned stuff
-      // so just return the image.
-      resizedImages.push(image);
-      continue;
-    }*/
-
     const sharedSettings = getSharedStableDiffusionSettings({
       prompt,
       steps,
       width: String(width),
       height: String(height),
       lora,
-      loraWeight,
       physicalDescription,
       sampler,
       storyPage: storyPages[index],
@@ -256,7 +231,6 @@ export async function getUpscaledStableDiffusionImages({
             height: Number(height),
             storyPage: storyPages[index],
             lora,
-            loraWeight,
             physicalDescription,
             useRegions,
           }),

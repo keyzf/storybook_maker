@@ -1,6 +1,6 @@
 export type StoryPage = {
   paragraph: string;
-  paragraph_tags: string;
+  hero_description: string;
   background: string;
   other_characters: string[];
 };
@@ -8,7 +8,6 @@ export type StoryPage = {
 export type StoryMetadata = {
   characterDescriptionMap: Record<string, string>;
   lora: string;
-  loraWeight: string;
   steps: string;
   sampler: string;
   width: string;
