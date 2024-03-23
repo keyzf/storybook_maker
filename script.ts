@@ -8,6 +8,7 @@ import {
 } from "./apis";
 import { getTemplate } from "./template/templateGenerator";
 import { WebUiManager } from "./WebUiManager";
+import { StoryMetadata } from "./types";
 
 program
   .option("-m, --model <model>", "ollama model to use", "mistral")
@@ -36,7 +37,7 @@ program
   .option(
     "-pd, --physicalDescription <description>",
     "tag based description of the protagonist for rendering",
-    "1boy, white, toddler, solo"
+    "1boy, toddler, solo"
   )
   .option("-pg, --pages <page>", "number of pages to generate", "5")
   .option("-l, --lora <lora>", "lora to use", "gavin-15")
@@ -47,7 +48,7 @@ program
     ""
   )
   .option("-s, --sampler <sampler>", "sampler to use", "DPM++ 2M Karras")
-  .option("-st, --steps <steps>", "number of steps to use in rendering", "25")
+  .option("-st, --steps <steps>", "number of steps to use in rendering", "30")
   .option("-x, --width <width>", "width of the image", "512")
   .option("-y, --height <height>", "height of the image", "512")
   .parse();
@@ -100,10 +101,7 @@ async function makeStory() {
   }in ${pages} separate parts. Do not describe hair, eye, or skin colour.
 
   Respond in JSON by placing an array in a key called story that holds each part. 
-  Each array element contains an object with the following format: {
-    "paragraph": the paragraph,
-    "background": descriptive comma separated tags describing the background
-  }`;
+  Each array element contains an object with the following format: { "paragraph": the paragraph as a string}`;
 
   let currentContext: number[] = null;
   const { response: story, context: storyContext } = await getStoryPages(
@@ -122,7 +120,7 @@ async function makeStory() {
     );
   currentContext = storyNameContext;
 
-  const characterNamePromopt = `Tell me names we can use to refer to the people and animals in the story.
+  const characterNamePromopt = `Tell me names we can use to refer to the people and animals in the story. Only include important characters.
     Respond in JSON by placing a an array of the names as strings in a key called names`;
   const characterNamesResp = await getOllamaString(
     characterNamePromopt,
@@ -138,8 +136,9 @@ async function makeStory() {
   for (const [index, { paragraph }] of Object.entries(story)) {
     const checkPrompt = `Using this paragraph, tell me whether any people or animals other than ${hero} are visible: "${paragraph}".
       Refer to them by name from this list: ${characterNameRespJson.names.join(
-        ","
+        ", "
       )}. 
+      Only include the names of the people and animals that are explicitly mentioned.
       Respond in JSON with the following format: {
         "people": a list of the people,
         "animals": a list of the animals
@@ -161,9 +160,26 @@ async function makeStory() {
       ) || []),
     ];
 
+    const backgroundPrompt = `Be creative and describe what the scene looks like in this paragraph: "${paragraph}".
+      Do not describe ${hero}.
+      Respond in JSON with the following format: {
+        "background": the description as a string - do not return an array
+      }
+    `;
+    const background = await getOllamaString(
+      backgroundPrompt,
+      model,
+      currentContext
+    );
+    const backgroundJson: {
+      background: string;
+    } = JSON.parse(background.response);
+    currentContext = background.context;
+    story[index].background = backgroundJson.background;
+
     for (const character of filteredCharacters) {
       if (!characterDescriptionMap[character]) {
-        const descriptionPrompt = `Be creative and provide simple verbs and nouns separated by commas to describe what ${character} looks like.
+        const descriptionPrompt = `Be creative describe what ${character} looks like.
          Include their gender as "a man", or "a woman".  
          Include their ethnicity.
          Do not describe ${hero}.
@@ -182,14 +198,14 @@ async function makeStory() {
         currentContext = characterDescription.context;
         characterDescriptionMap[character] =
           characterDescriptionJson.description
-            .split(",")
-            .slice(0, 5)
+            //.split(",")
+            //.slice(0, 5)
             .toString();
       }
     }
 
     if (filteredCharacters[0]) {
-      const descriptionPrompt = `Be creative and provide simple verbs and nouns separated by commas to describe how ${filteredCharacters[0]} would react to this paragraph: "${paragraph}". 
+      const descriptionPrompt = `Be creative and describe how ${filteredCharacters[0]} would react to this paragraph: "${paragraph}". 
         Do not describe ${hero}.
         Respond in JSON with the following format: {
           "description": the description as a string - do not return an array
@@ -206,16 +222,24 @@ async function makeStory() {
       } = JSON.parse(description.response);
       currentContext = description.context;
 
-      story[index].other_characters = descriptionJson.description
-        .split(",")
-        .slice(0, 5)
-        .toString();
+      story[index].other_characters = `${characterDescriptionMap[
+        filteredCharacters[0]
+      ]
+        //.split(",")
+        //.slice(0, 5)
+        .toString()} ${descriptionJson.description
+        //.split(",")
+        //.slice(0, 5)
+        .toString()}`;
     }
 
     // FIXME: Better naming here - this should be more like the physical description I think
-    const heroDescriptionPrompt = `Be creative and provide simple verbs and nouns separated by commas to describe how ${hero} would react to this paragraph: "${paragraph}" 
+    const heroDescriptionPrompt = `Be creative and describe how ${hero} would react to this paragraph: "${paragraph}" 
       Ensure we respect their description: ${physicalDescription}. 
-      Do not describe ${filteredCharacters[0]}.
+      Do not describe hair, eye, or skin colour.
+      ${
+        filteredCharacters[0] ? `Do not describe ${filteredCharacters[0]}.` : ""
+      }
       Respond in JSON with the following format: {
         "description": the description as a string - do not return an array
       }`;
@@ -229,8 +253,8 @@ async function makeStory() {
       description: string;
     } = JSON.parse(heroDescription.response);
     story[index].paragraph_tags = heroDescriptionJson.description
-      .split(",")
-      .slice(0, 5)
+      //.split(",")
+      //.slice(0, 5)
       .toString();
   }
 
@@ -255,7 +279,6 @@ async function makeStory() {
 
     const images = await getStableDiffusionImages({
       prompt,
-      sampler,
       steps,
       width,
       height,
@@ -263,9 +286,6 @@ async function makeStory() {
       lora,
       loraWeight,
       physicalDescription,
-      characterDescriptionMap,
-      // We can go faster if we only use regions every few pages.
-      // Can also end up with some better action shots as a result.
       useRegions: !!storyPage.other_characters,
       urlBase: "127.0.0.1:7860",
     });
@@ -281,10 +301,10 @@ async function makeStory() {
     }
   }
 
+  // TODO: Need to make the template be ready for this.
   // Make up a title page image for the story.
-  const titlePageImages = await getStableDiffusionImages({
+  /*const titlePageImages = await getStableDiffusionImages({
     prompt,
-    sampler,
     steps,
     width,
     height,
@@ -292,31 +312,44 @@ async function makeStory() {
       paragraph: ``,
       paragraph_tags: physicalDescription,
       background: "a vibrant sunset",
+      other_characters: [],
     },
     lora,
     loraWeight,
     physicalDescription: `looking at the camera, smiling, ${physicalDescription}`,
-    characterDescriptionMap,
     useRegions: false,
     urlBase: "127.0.0.1:7860",
-  });
+  });*/
+
+  const storyMetadata: StoryMetadata = {
+    characterDescriptionMap,
+    lora,
+    loraWeight,
+    steps,
+    sampler,
+    width,
+    height,
+    physicalDescription,
+    prompt,
+    useRegions: story.map((x) => !!x.other_characters?.length),
+  };
 
   await Promise.all([
     writeFile(
       `./stories/${directoryPath}/index.html`,
-      getTemplate(
-        story,
-        // Send through the previews before we edit.
-        imageBlobs.map((x) => x[0])
-      )
+      getTemplate(story, false)
     ),
-    ...titlePageImages.map((image, index) =>
+    /*...titlePageImages.map((image, index) =>
       writeFile(
         `./stories/${directoryPath}/title-${index}.png`,
         Buffer.from(image as string, "base64")
       )
-    ),
+    ),*/
     writeFile(`./stories/${directoryPath}/story.json`, JSON.stringify(story)),
+    writeFile(
+      `./stories/${directoryPath}/metadata.json`,
+      JSON.stringify(storyMetadata)
+    ),
     copyFile(
       "./template/HobbyHorseNF.otf",
       `./stories/${directoryPath}/HobbyHorseNF.otf`

@@ -184,7 +184,11 @@ const template = `
 </html>
 `;
 
-function getStoryPage(paragraph: string, imageBlob: Buffer): string {
+function getStoryPage(
+  paragraph: string,
+  isEdited: boolean,
+  pageNumber: number
+): string {
   return `
   <div class="page active">
     <div class="container container-left active">
@@ -196,7 +200,7 @@ function getStoryPage(paragraph: string, imageBlob: Buffer): string {
       </div>
       <div class="container container-right">
         <div class="picture">
-          <img src="data:image/png;base64, ${imageBlob.toString("base64")}" />
+          <img src="./${isEdited ? "final" : "0"}-${pageNumber}.jpg" />
         </div>
       </div>
     </div>
@@ -204,11 +208,11 @@ function getStoryPage(paragraph: string, imageBlob: Buffer): string {
 `;
 }
 
-export function getTemplate(pages: StoryPage[], images: Buffer[]): string {
+export function getTemplate(pages: StoryPage[], isEdited: boolean): string {
   return template.replace(
     "[##STORY##]",
     pages
-      .map(({ paragraph }, index) => getStoryPage(paragraph, images[index]))
+      .map(({ paragraph }, index) => getStoryPage(paragraph, isEdited, index))
       .join("\n")
   );
 }

@@ -72,46 +72,27 @@ export async function setStableDiffusionModelCheckpoint(
   });
 }
 
-export async function getStableDiffusionImages({
+function getSharedStableDiffusionSettings({
   prompt,
-  sampler,
   steps,
   width,
   height,
-  storyPage,
+  useRegions,
   lora,
   loraWeight,
   physicalDescription,
-  characterDescriptionMap,
-  useRegions,
-  urlBase = "127.0.0.1:7860",
-}: {
-  prompt: string;
-  sampler: string;
-  steps: string;
-  width: string;
-  height: string;
-  storyPage: StoryPage;
-  lora: string;
-  loraWeight: string;
-  physicalDescription: string;
-  characterDescriptionMap: Record<string, string>;
-  useRegions: boolean;
-  urlBase?: string;
-}): Promise<string[]> {
-  const generatedPrompt = useRegions
+  storyPage,
+}) {
+  const basePrompt = useRegions
     ? prompt
     : `<lora:${lora}:${loraWeight}>easyphoto_face, ${physicalDescription}, ${storyPage.paragraph_tags}, ${storyPage.background}, ${prompt}`;
+  console.log("### Base prompt", basePrompt);
 
-  console.log("### Base Prompt: ", generatedPrompt);
-
-  const sharedSettings = {
-    prompt: generatedPrompt,
+  return {
+    prompt: basePrompt,
     negative_prompt:
       "lowres, text, error, cropped, morbid, mutilated, out of frame, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, bad proportions, extra limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck, username, watermark, signature, split frame, multiple frame, split panel, multi panel",
     seed: -1,
-    sampler_name: sampler,
-    // If regions are being used then use fewer steps.
     steps,
     cfg_scale: 16,
     width: Number(width),
@@ -120,19 +101,57 @@ export async function getStableDiffusionImages({
     disable_extra_networks: false,
     send_images: true,
     save_images: true,
+    denoisingStrength: 0.5,
   };
+}
+
+export async function getStableDiffusionImages({
+  prompt,
+  steps,
+  width,
+  height,
+  storyPage,
+  lora,
+  loraWeight,
+  physicalDescription,
+  useRegions,
+  urlBase = "127.0.0.1:7860",
+}: {
+  prompt: string;
+  steps: string;
+  width: string;
+  height: string;
+  storyPage: StoryPage;
+  lora: string;
+  loraWeight: string;
+  physicalDescription: string;
+  useRegions: boolean;
+  urlBase?: string;
+}): Promise<string[]> {
+  const sharedSettings = getSharedStableDiffusionSettings({
+    prompt,
+    steps,
+    width,
+    height,
+    lora,
+    loraWeight,
+    physicalDescription,
+    storyPage,
+    useRegions,
+  });
+  console.log("### Base Prompt: ", prompt);
 
   const sdTxt2ImgResp = await fetch(`http://${urlBase}/sdapi/v1/txt2img`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       ...sharedSettings,
-      batch_size: 1,
+      batch_size: 4,
       ...(!useRegions
         ? {
             enable_hr: true,
             // TODO: .4 or .5?
-            denoising_strength: 0.5,
+            denoising_strength: sharedSettings.denoisingStrength,
             hr_second_pass_steps: 0,
             hr_scale: 2,
             hr_upscaler: "R-ESRGAN 4x+",
@@ -147,7 +166,6 @@ export async function getStableDiffusionImages({
               lora,
               loraWeight,
               physicalDescription,
-              characterDescriptionMap,
             })
           : {}),
       },
@@ -165,17 +183,57 @@ export async function getStableDiffusionImages({
 
   const txt2ImgJson: sdResponse = await sdTxt2ImgResp.json();
 
-  // Return if we're not using regions, otherwise we should use img2img to resize the images.
-  if (!useRegions) return txt2ImgJson.images;
+  return txt2ImgJson.images;
+}
 
-  // Keep the preview images even though they will change
-  const resizedImages: string[] =
-    txt2ImgJson.images.length > 1 ? [txt2ImgJson.images[0]] : [];
+export async function getUpscaledStableDiffusionImages({
+  images,
+  storyPages,
+  width,
+  height,
+  prompt,
+  steps,
+  lora,
+  loraWeight,
+  physicalDescription,
+  sampler,
+  urlBase = "127.0.0.1:7860",
+}: {
+  images: string[];
+  storyPages: StoryPage[];
+  width: number;
+  height: number;
+  prompt: string;
+  steps: string;
+  lora: string;
+  loraWeight: string;
+  physicalDescription: string;
+  sampler: string;
+  urlBase?: string;
+}) {
+  const resizedImages: string[] = [];
 
-  // TODO: Just go through the batches one by one, if denoise is low enough it doesn't take that long.
-  for (const [index, image] of txt2ImgJson.images.entries()) {
-    // Skip the big preview image.
-    if (index === 0 && txt2ImgJson.images.length > 1) continue;
+  for (const [index, image] of images.entries()) {
+    const useRegions = !!storyPages[index].other_characters?.length;
+
+    if (!useRegions) {
+      // We fix the image when the story is generated for the non regioned stuff
+      // so just return the image.
+      resizedImages.push(image);
+      continue;
+    }
+
+    const sharedSettings = getSharedStableDiffusionSettings({
+      prompt,
+      steps,
+      width: String(width),
+      height: String(height),
+      lora,
+      loraWeight,
+      physicalDescription,
+      storyPage: storyPages[index],
+      useRegions,
+    });
 
     const sdImg2ImgResp = await fetch(`http://${urlBase}/sdapi/v1/img2img`, {
       method: "POST",
@@ -183,17 +241,17 @@ export async function getStableDiffusionImages({
       body: JSON.stringify({
         ...sharedSettings,
         batch_size: 1,
-        denoising_strength: 0.5, // Default is 0.75 - lower goes faster, higher might be better.
+        denoising_strength: sharedSettings.denoisingStrength,
+        sampler: sampler,
         init_images: [image],
         alwayson_scripts: {
           ...getMultiDiffusionScriptArgs({
             width: Number(width),
             height: Number(height),
-            storyPage,
+            storyPage: storyPages[index],
             lora,
             loraWeight,
             physicalDescription,
-            characterDescriptionMap,
           }),
         },
       }),

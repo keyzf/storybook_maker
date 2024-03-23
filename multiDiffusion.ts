@@ -42,7 +42,6 @@ export function getMultiDiffusionScriptArgs({
   lora,
   loraWeight,
   physicalDescription,
-  characterDescriptionMap,
 }: {
   width: number;
   height: number;
@@ -50,19 +49,13 @@ export function getMultiDiffusionScriptArgs({
   lora: string;
   loraWeight: string;
   physicalDescription: string;
-  characterDescriptionMap: Record<string, string>;
 }) {
   const heroPrompt = `<lora:${lora}:${loraWeight}>easyphoto_face, ${physicalDescription}, ${storyPage.paragraph_tags}`;
-  const targetedCharacterKeys = Object.keys(characterDescriptionMap);
-  const targetedCharacterDescription = Object.entries(
-    characterDescriptionMap
-  ).find(([key]) => targetedCharacterKeys.includes(key));
-  console.log("### Using multi diffusion");
   console.log("### Background Prompt: ", storyPage.background);
   console.log("### Hero Prompt: ", heroPrompt);
   console.log(
     "### Other Characters Prompt: ",
-    `${targetedCharacterDescription} ${storyPage?.other_characters?.toString()}`
+    storyPage?.other_characters?.toString()
   );
 
   return {
@@ -93,33 +86,29 @@ export function getMultiDiffusionScriptArgs({
         "False", // draw_background - bool
         "False", // causual_layers - bool
 
-        ...[
-          // Background layer
-          ...getRegion({
-            prompt: storyPage.background,
-            blendMode: "Background",
-          }),
-          // The protagonist is front and center of this.
-          ...getRegion({
-            x: 0.0,
-            y: 0.1,
-            w: 0.6,
-            h: 0.9,
-            featherRatio: 0.1,
-            prompt: heroPrompt,
-          }),
-          // Other person/character
-          ...getRegion({
-            x: 0.4,
-            y: 0.1,
-            w: 0.6,
-            h: 0.9,
-            featherRatio: 0.3,
-            prompt: `${targetedCharacterDescription[0]} ${
-              targetedCharacterDescription[1]
-            } ${storyPage?.other_characters?.toString()}`,
-          }),
-        ],
+        // Background layer
+        ...getRegion({
+          prompt: storyPage.background,
+          blendMode: "Background",
+        }),
+        // The protagonist is front and center of this.
+        ...getRegion({
+          x: 0.0,
+          y: 0.1,
+          w: 0.6,
+          h: 0.9,
+          featherRatio: 0.1,
+          prompt: heroPrompt,
+        }),
+        // Other person/character
+        ...getRegion({
+          x: 0.4,
+          y: 0.1,
+          w: 0.6,
+          h: 0.9,
+          featherRatio: 0.3,
+          prompt: storyPage.other_characters.toString(),
+        }),
       ],
       /*"Tiled VAE": {
         args: ["True", "True", "True", "True", "False", 2048, 192],
