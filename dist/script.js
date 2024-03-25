@@ -16,30 +16,34 @@ commander_1.program
     .option("-g, --genre <title>", "genre of the story", "children's story")
     .option("-p, --storyPlot <prompt>", "suggested plot for the hero of the story", "")
     .option("-h, --hero <name>", "name of the protagonist", "Gavin")
+    .option("-hg, --heroGender <male|female>", "male")
+    .option("-htags, --heroTags <description>", "tag based description of the protagonist for rendering", "toddler")
     .option("-hd, --heroDescription <description>", "description of the protagonist for the story", "a boy toddler")
-    .option("-pd, --physicalDescription <description>", "tag based description of the protagonist for rendering", "1boy, toddler, solo")
     .option("-sh, --support <name>", "name of the supporting character", "")
+    .option("-sg, --supportGender <male|female>", "gender of the supporting character", "")
+    .option("-stags, --supportTags <description>", "tag based description of the supporting character for rendering", "")
     .option("-sd, --supportDescription <description>", "description of the supporting character for the story", "")
-    .option("-sp, --supportPhysicalDescription <description>", "tag based description of the supporting character for rendering", "")
     .option("-l, --lora <lora>", "lora to use for the hero", "gavin-15")
     .option("-sl, --supportLora <name>", "lora to use for the supporting character", "")
     .option("-pg, --pages <page>", "number of pages to generate", "5")
-    .option("-pr, --prompt <prompt>", `additional details to provide to the prompt - should just specify what the overall image looks like`, "")
+    .option("-pr, --prompt <prompt>", `additional details to provide to the prompt - should just specify what the overall image looks like`, "masterpiece, 8k, high resolution, high quality, colorful")
     .option("-s, --sampler <sampler>", "sampler to use", "DPM++ 2M Karras")
-    .option("-st, --steps <steps>", "number of steps to use in rendering", "30")
+    .option("-st, --steps <steps>", "number of steps to use in rendering", "36")
     .option("-x, --width <width>", "width of the image", "512")
     .option("-y, --height <height>", "height of the image", "512")
     .parse();
 async function makeStory() {
-    var _a, _b;
+    var _a, _b, _c;
     const opts = commander_1.program.opts();
     console.log("Options: ", opts);
-    const { model, modelStableDiffusion, genre, storyPlot, hero, heroDescription, physicalDescription, support, supportDescription, supportPhysicalDescription, lora, supportLora, pages, prompt, sampler, steps, width, height, } = commander_1.program.opts();
+    const { model, modelStableDiffusion, genre, storyPlot, hero, heroGender, heroDescription, heroTags: inputHeroTags, support, supportGender, supportDescription, supportTags: inputSupportTags, lora, supportLora, pages, prompt, sampler, steps, width, height, } = commander_1.program.opts();
+    const heroTags = `${heroGender}, ${inputHeroTags}`;
+    const supportTags = `${supportGender}, ${inputSupportTags}`;
     // Ensure that the targeted lora exists. Saves us time if something went wrong.
     await (0, promises_1.access)(`/home/kyle/Development/stable_diffusion/stable-diffusion-webui/models/Lora/${lora}.safetensors`);
     const fullPrompt = `Make me a ${genre} about ${heroDescription} named ${hero} ${storyPlot ? `where ${storyPlot} ` : ""}in ${pages} separate parts. 
-  Do not describe hair, eye, or skin colour.
-  ${support
+  Do not mention hair, eye, or skin colour.
+  ${support.length
         ? `Include a person named ${support} that is ${supportDescription}.`
         : ""}
 
@@ -55,15 +59,16 @@ async function makeStory() {
     const characterNamePromopt = `Tell me names we can use to refer to the people and animals in the story. 
     Only include important characters.
     Include ${hero} in the list.
-    ${support ? `Include ${support} in the list.` : ""}
+    ${support.length ? `Include ${support} in the list.` : ""}
     Respond in JSON by placing a an array of the names as strings in a key called names`;
     const characterNamesResp = await (0, apis_1.getOllamaString)(characterNamePromopt, model, storyContext);
     const characterNameRespJson = JSON.parse(characterNamesResp.response);
     currentContext = characterNamesResp.context;
     const characterDescriptionMap = {};
-    for (const [index, { paragraph }] of Object.entries(story)) {
+    for (const [index, { paragraph }] of story.entries()) {
         const checkPrompt = `Using this paragraph, tell me whether any people or animals other than ${hero} are visible: "${paragraph}".
-      Refer to them by name from this list: ${characterNameRespJson.names.join(", ")}. 
+      Refer to them by name from this list: ${characterNameRespJson.names.join(", ")}.
+      Assume that any use of the word "they", "them", or "their" means the people and animals in the story.
       Only include the names of the people and animals that are explicitly mentioned.
       Respond in JSON with the following format: {
         "people": a list of the people,
@@ -74,18 +79,20 @@ async function makeStory() {
         currentContext = checkResp.context;
         const checkRespJson = JSON.parse(checkResp.response);
         const filteredCharacters = [
-            ...(((_a = checkRespJson.people) === null || _a === void 0 ? void 0 : _a.filter((x) => { var _a; return !((_a = x === null || x === void 0 ? void 0 : x.toLowerCase()) === null || _a === void 0 ? void 0 : _a.includes(hero.toLowerCase())); })) || []),
-            ...(((_b = checkRespJson.animals) === null || _b === void 0 ? void 0 : _b.filter((x) => { var _a; return !((_a = x === null || x === void 0 ? void 0 : x.toLowerCase()) === null || _a === void 0 ? void 0 : _a.includes(hero.toLowerCase())); })) || []),
+            ...(((_a = checkRespJson.people) === null || _a === void 0 ? void 0 : _a.filter((x) => { var _a; return !((_a = x === null || x === void 0 ? void 0 : x.toLowerCase()) === null || _a === void 0 ? void 0 : _a.includes(hero.toLowerCase())) && (x === null || x === void 0 ? void 0 : x.length) >= 1; })) || []),
+            ...(((_b = checkRespJson.animals) === null || _b === void 0 ? void 0 : _b.filter((x) => { var _a; return !((_a = x === null || x === void 0 ? void 0 : x.toLowerCase()) === null || _a === void 0 ? void 0 : _a.includes(hero.toLowerCase())) && (x === null || x === void 0 ? void 0 : x.length) >= 1; })) || []),
         ];
-        if (support) {
-            characterDescriptionMap[support] = `<lora:${supportLora}:1> ${supportPhysicalDescription} ${supportDescription}`;
+        if (support.length) {
+            characterDescriptionMap[support] = `<lora:${supportLora}:1>${Math.random() < 0.5 ? `easyphoto_face, ` : ""}${supportTags}`;
         }
         for (const character of filteredCharacters) {
+            if (!character.length)
+                continue;
             if (!characterDescriptionMap[character]) {
-                const descriptionPrompt = `Be creative and in a sentence or two describe what ${character} looks like.
+                const descriptionPrompt = `Be creative and in a single sentence describe what ${character} looks like.
          Include their gender as "a man", or "a woman".  
          Include their ethnicity.
-         Do not describe ${hero}.
+         Do not mention ${hero} or any other characters.
 
          Respond in JSON with the following format: {
            "description": the description as a string - do not return an array
@@ -98,10 +105,11 @@ async function makeStory() {
                     characterDescriptionJson.description.toString();
             }
         }
+        const character = filteredCharacters[Math.floor(Math.random() * filteredCharacters.length)];
         if (filteredCharacters.length) {
-            const character = filteredCharacters[Math.floor(Math.random() * filteredCharacters.length)];
-            const descriptionPrompt = `Be creative and in a sentence or two describe how ${character} would react to this paragraph: "${paragraph}". 
-        Do not describe ${hero}.
+            const descriptionPrompt = `Be creative and in a single sentence describe how ${character} would react to this paragraph: "${paragraph}". 
+        Do not mention ${hero} or any other characters.
+        Do not use the words "they", "them", or "their".
         Respond in JSON with the following format: {
           "description": the description as a string - do not return an array
         }
@@ -110,10 +118,10 @@ async function makeStory() {
             const description = await (0, apis_1.getOllamaString)(descriptionPrompt, model, currentContext);
             const descriptionJson = JSON.parse(description.response);
             currentContext = description.context;
-            story[index].other_characters = `${characterDescriptionMap[character].toString()} ${descriptionJson.description.toString()}`;
+            story[index].supportPrompt = `${characterDescriptionMap[character].toString()}, ${descriptionJson.description.toString()}`;
         }
-        const backgroundPrompt = `Be creative and in a sentence or two describe what the scene looks like in this paragraph in a sentence or two: "${paragraph}".
-    Do not describe ${hero}.
+        const backgroundPrompt = `Be creative and in a sentence or two describe what the scene looks like in this paragraph: "${paragraph}".
+    Do not mention ${hero}${story[index].supportPrompt ? `, ${character},` : ""} or any other characters.
     Respond in JSON with the following format: {
       "background": the description as a string - do not return an array
     }
@@ -122,18 +130,20 @@ async function makeStory() {
         const backgroundJson = JSON.parse(background.response);
         currentContext = background.context;
         story[index].background = backgroundJson.background;
-        // FIXME: Better naming here - this should be more like the physical description I think
-        const heroDescriptionPrompt = `Be creative and in a sentence or two describe how ${hero} would react to this paragraph: "${paragraph}" 
-      Ensure we respect their description: ${physicalDescription}. 
-      Do not describe hair, eye, or skin colour.
-      ${filteredCharacters[0] ? `Do not describe ${filteredCharacters[0]}.` : ""}
+        if ((_c = checkRespJson.people) === null || _c === void 0 ? void 0 : _c.includes(hero)) {
+            const heroDescriptionPrompt = `Be creative and in a single sentence describe how ${hero} would react to this paragraph: "${paragraph}" 
+      Ensure we respect their description: ${heroTags}. 
+      Do not mention hair, eye, or skin colour.
+      ${character ? `Do not mention ${character} or any other characters.` : ""}
+      Do not use the words "they", "them", or "their".
       Respond in JSON with the following format: {
         "description": the description as a string - do not return an array
       }`;
-        const heroDescription = await (0, apis_1.getOllamaString)(heroDescriptionPrompt, model, currentContext);
-        currentContext = heroDescription.context;
-        const heroDescriptionJson = JSON.parse(heroDescription.response);
-        story[index].hero_description = heroDescriptionJson.description.toString();
+            const heroDescription = await (0, apis_1.getOllamaString)(heroDescriptionPrompt, model, currentContext);
+            currentContext = heroDescription.context;
+            const heroDescriptionJson = JSON.parse(heroDescription.response);
+            story[index].heroPrompt = `<lora:${lora}:1>${Math.random() < 0.5 ? `easyphoto_face, ` : ""}${heroTags}, ${heroDescriptionJson.description.toString()}`;
+        }
     }
     console.log("### Character Descriptions: ", JSON.stringify(characterDescriptionMap, null, 2));
     const directoryPath = Math.floor(Date.now() / 1000).toString();
@@ -151,10 +161,8 @@ async function makeStory() {
             width,
             height,
             storyPage,
-            lora,
             sampler,
-            physicalDescription,
-            useRegions: !!storyPage.other_characters,
+            useRegions: !!(storyPage.heroPrompt && storyPage.supportPrompt),
             urlBase: "127.0.0.1:7860",
         });
         for (const [imageIndex, image] of images.entries()) {
@@ -191,9 +199,9 @@ async function makeStory() {
         sampler,
         width,
         height,
-        physicalDescription,
+        heroTags,
         prompt,
-        useRegions: story.map((x) => { var _a; return !!((_a = x.other_characters) === null || _a === void 0 ? void 0 : _a.length); }),
+        useRegions: story.map((x) => !!(x.heroPrompt && x.supportPrompt)),
     };
     await Promise.all([
         (0, promises_1.writeFile)(`./stories/${directoryPath}/index.html`, (0, templateGenerator_1.getTemplate)(story, false)),

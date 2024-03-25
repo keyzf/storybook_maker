@@ -1,8 +1,8 @@
 export type StoryPage = {
   paragraph: string;
-  hero_description: string;
+  heroPrompt?: string;
+  supportPrompt?: string;
   background: string;
-  other_characters: string[];
 };
 
 export type StoryMetadata = {
@@ -12,7 +12,7 @@ export type StoryMetadata = {
   sampler: string;
   width: string;
   height: string;
-  physicalDescription: string;
+  heroTags: string;
   useRegions: boolean[];
   prompt: string;
 };

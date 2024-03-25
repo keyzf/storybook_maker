@@ -63,7 +63,6 @@ async function editStory() {
   //await setStableDiffusionModelCheckpoint(metadata.sampler);
 
   const upscaledImages = await getUpscaledStableDiffusionImages({
-    lora: metadata.lora,
     steps: metadata.steps,
     width: Number(metadata.width),
     height: Number(metadata.height),
@@ -74,7 +73,6 @@ async function editStory() {
         ).toString("base64")
       )
     ),
-    physicalDescription: metadata.physicalDescription,
     storyPages: story,
     prompt: metadata.prompt, // FIXME?: I don't know if we use this anywhere
     sampler: metadata.sampler,

@@ -39,25 +39,17 @@ export function getMultiDiffusionScriptArgs({
   width,
   height,
   storyPage,
-  lora,
-  physicalDescription,
   useRegions,
 }: {
   width: number;
   height: number;
   storyPage: StoryPage;
-  lora: string;
-  physicalDescription: string;
   useRegions: boolean;
 }) {
-  const heroPrompt = `<lora:${lora}:1>${physicalDescription}, ${storyPage.hero_description}`;
   if (useRegions) {
     console.log("### Background Prompt: ", storyPage.background);
-    console.log("### Hero Prompt: ", heroPrompt);
-    console.log(
-      "### Other Characters Prompt: ",
-      storyPage?.other_characters?.toString()
-    );
+    console.log("### Hero Prompt: ", storyPage.heroPrompt);
+    console.log("### Supporting Character Prompt: ", storyPage.supportPrompt);
   }
 
   return {
@@ -76,7 +68,7 @@ export function getMultiDiffusionScriptArgs({
         96, // tile_height - int
         48, // overlap - int
         8, // tile_batch_size - int
-        "R-ESRGAN 4x+", // upscaler_name - str
+        "R-ESRGAN 4x+", // upscaler_name - str // "SwinIR_4x"
         2, // scale_factor - float
         null, // noise_inverse - bool
         null, // noise_inverse_steps - int
@@ -101,8 +93,8 @@ export function getMultiDiffusionScriptArgs({
                 y: 0.1,
                 w: 0.6,
                 h: 0.9,
-                featherRatio: 0.1,
-                prompt: heroPrompt,
+                //featherRatio: 0.2,
+                prompt: storyPage.heroPrompt,
               }),
               // Other person/character
               ...getRegion({
@@ -110,15 +102,15 @@ export function getMultiDiffusionScriptArgs({
                 y: 0.1,
                 w: 0.6,
                 h: 0.9,
-                featherRatio: 0.3,
-                prompt: storyPage.other_characters.toString(),
+                //featherRatio: 0.3,
+                prompt: storyPage.supportPrompt,
               }),
             ]
           : []),
       ],
-      /*"Tiled VAE": {
+      "Tiled VAE": {
         args: ["True", "True", "True", "True", "False", 2048, 192],
-      },*/
+      },
     },
   };
 }
